@@ -1,0 +1,41 @@
+name: Build Windows
+
+# Windows 版打包：Flutter 不支持跨系统编译，Windows 包在 windows-latest 上构建。
+# 用法：推送 tag（如 v0.1.0）或在 Actions 页手动 Run workflow，产物为 zip 便携包。
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - run: flutter analyze
+        continue-on-error: true
+
+      - run: flutter test
+
+      - run: flutter build windows --release
+
+      # 打包成便携 zip（含 exe 与全部 dll/资源）
+      - name: Zip portable
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build\windows\x64\runner\Release\* `
+            -DestinationPath musicbox-windows-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musicbox-windows-x64
+          path: musicbox-windows-x64.zip

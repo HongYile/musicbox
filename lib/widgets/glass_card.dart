@@ -61,17 +61,19 @@ class _GlassCardState extends State<GlassCard> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
             child: Material(
-              type: MaterialType.transparency,
+              // 用带色带形的 Material 作为 ListTile 的最近 Material 祖先，
+              // 否则中间的 DecoratedBox 会吞掉水波纹并抛异常。
+              color: fill,
+              shape: RoundedRectangleBorder(
+                borderRadius: radius,
+                side: BorderSide(color: border),
+              ),
+              clipBehavior: Clip.antiAlias,
               child: InkWell(
                 onTap: widget.onTap,
                 borderRadius: radius,
-                child: Container(
-                  padding: widget.padding,
-                  decoration: BoxDecoration(
-                    color: fill,
-                    border: Border.all(color: border),
-                    borderRadius: radius,
-                  ),
+                child: Padding(
+                  padding: widget.padding ?? EdgeInsets.zero,
                   child: widget.child,
                 ),
               ),

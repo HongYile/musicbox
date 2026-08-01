@@ -27,12 +27,19 @@ class QqAuthService {
     _logging = true;
     try {
       final webview = await WebviewWindow.create(
-        configuration: const CreateConfiguration(title: '登录 QQ 音乐'),
+        configuration: const CreateConfiguration(
+          title: '登录 QQ 音乐',
+          windowWidth: 1000,
+          windowHeight: 720,
+        ),
       );
+      var closed = false;
+      webview.onClose.then((_) => closed = true);
       webview.launch('https://y.qq.com');
 
       final deadline = DateTime.now().add(const Duration(minutes: 5));
       while (DateTime.now().isBefore(deadline)) {
+        if (closed) return false; // 用户直接关了登录窗
         await Future<void>.delayed(const Duration(seconds: 2));
         Map<String, String> cookies;
         try {

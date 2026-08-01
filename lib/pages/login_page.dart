@@ -396,7 +396,11 @@ class _NutstoreCardState extends ConsumerState<_NutstoreCard> {
           'nutstore_last_sync_ms', DateTime.now().millisecondsSinceEpoch);
       setState(() => _message = imported ? '已拉取远程并推送本地' : '已推送本地到坚果云');
     } catch (e) {
-      setState(() => _message = '同步失败: $e');
+      final msg = '$e';
+      setState(() => _message = msg.contains('401')
+          ? '账号或应用密码错误（要用「第三方应用管理」生成的应用密码，'
+              '不是登录密码；粘贴的空格已自动去除，请重新保存账号）'
+          : '同步失败: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

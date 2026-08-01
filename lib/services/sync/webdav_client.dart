@@ -9,18 +9,21 @@ import 'package:dio/dio.dart';
 /// 只实现同步所需的最小操作集：MKCOL / PUT / GET / PROPFIND(存在性与修改时间)。
 class WebDavClient {
   WebDavClient({
-    required this.email,
-    required this.appPassword,
+    required String email,
+    required String appPassword,
     String baseUrl = 'https://dav.jianguoyun.com/dav',
     Dio? dio,
-  }) : _dio = dio ??
+  })  : email = email.trim(),
+        // 坚果云应用密码粘贴常带空格/换行，统一剥掉空白字符
+        appPassword = appPassword.replaceAll(RegExp(r'\s'), ''),
+        _dio = dio ??
             Dio(BaseOptions(
               baseUrl: baseUrl,
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 20),
               headers: {
                 'Authorization':
-                    'Basic ${base64Encode(utf8.encode('$email:$appPassword'))}',
+                    'Basic ${base64Encode(utf8.encode('${email.trim()}:${appPassword.replaceAll(RegExp(r'\s'), '')}'))}',
               },
               // 坚果云对不存在路径返回 404、MKCOL 已存在返回 405，均为正常流
               validateStatus: (_) => true,
@@ -50,7 +53,17 @@ class WebDavClient {
         options: Options(responseType: ResponseType.bytes));
     if (resp.statusCode == 404) return null;
     if ((resp.statusCode ?? 0) >= 400) {
-      throw StateError('WebDAV GET $path 失败: ${resp.statusCode}');
+      var detail = '';
+      try {
+        if (resp.data != null) {
+          detail = utf8
+              .decode(resp.data!)
+              .substring(0, resp.data!.length > 120 ? 120 : resp.data!.length);
+        }
+      } catch (_) {}
+      throw StateError(
+          'WebDAV GET $path 失败: ${resp.statusCode} ${resp.statusMessage} $detail'
+              .trim());
     }
     return Uint8List.fromList(resp.data ?? const []);
   }

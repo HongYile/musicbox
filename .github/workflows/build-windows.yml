@@ -39,3 +39,10 @@ jobs:
         with:
           name: musicbox-windows-x64
           path: musicbox-windows-x64.zip
+
+      # tag 触发时，顺手把 zip 挂到同名 Release 上
+      - name: Attach to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: musicbox-windows-x64.zip

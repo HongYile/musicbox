@@ -23,6 +23,7 @@ import 'services/library/library_db.dart';
 import 'services/player/audio_proxy.dart';
 import 'services/player/musicbox_audio_handler.dart';
 import 'services/player/player_service.dart';
+import 'services/player/smtc_bridge.dart';
 import 'services/sources/bilibili/api/client.dart';
 import 'services/sources/bilibili/api/endpoints.dart';
 import 'services/sources/netease/api/ncm_client.dart';
@@ -102,18 +103,24 @@ Future<void> main() async {
         email: nutstoreEmail, appPassword: nutstorePassword);
   }
 
-  // 后台播放 + 系统媒体控制（macOS Now Playing/媒体键）：
-  // audio_session 配置音频会话，audio_service 同步播放状态与元数据。
-  final session = await AudioSession.instance;
-  await session.configure(const AudioSessionConfiguration.music());
-  await AudioService.init(
-    builder: () => MusicboxAudioHandler(playerService),
-    config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.krelar.musicbox.audio',
-      androidNotificationChannelName: 'musicbox 播放',
-      androidNotificationOngoing: true,
-    ),
-  );
+  // 后台播放 + 系统媒体控制：macOS/iOS/Android/Linux 走 audio_service；
+  // Windows 走 smtc_windows（audio_service/audio_session 无 Windows 实现，
+  // 直接调用会 MissingPluginException 导致启动崩溃）。
+  if (Platform.isWindows) {
+    final smtc = SmtcBridge(playerService);
+    await smtc.init();
+  } else {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.music());
+    await AudioService.init(
+      builder: () => MusicboxAudioHandler(playerService),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.krelar.musicbox.audio',
+        androidNotificationChannelName: 'musicbox 播放',
+        androidNotificationOngoing: true,
+      ),
+    );
+  }
 
   runApp(
     ProviderScope(

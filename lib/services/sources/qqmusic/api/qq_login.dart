@@ -273,6 +273,63 @@ class QqQrLogin {
 
     // 2) p_skey/skey → QQ 音乐票据（g_tk 同 hash33；音乐域 Set-Cookie 下发）
     final gtk = qqHash33(pSkey);
+
+    // 2a) OAuth 链：pt_oauth_token → openid → Login(openid+access_token)。
+    // u1=graph.qq.com 走的是 OAuth 通道，LoginServer 需要 openid 而非裸 uin。
+    final oauthToken = jar['pt_oauth_token'] ?? '';
+    if (oauthToken.isNotEmpty) {
+      try {
+        final meResp = await _plainDio.get<String>(
+          'https://graph.qq.com/oauth2.0/me',
+          queryParameters: {'access_token': oauthToken},
+        );
+        final meBody = meResp.data ?? '';
+        final openid =
+            RegExp(r'"openid"\s*:\s*"([^"]+)"').firstMatch(meBody)?.group(1);
+        debugPrint('[QqLogin] oauth2.0/me → openid=${openid ?? '(无)'}');
+        if (openid != null && openid.isNotEmpty) {
+          final oauthLogin = await _plainDio.post<String>(
+            'https://u.y.qq.com/cgi-bin/musicu.fcg',
+            data: jsonEncode({
+              'comm': {'g_tk': gtk, 'format': 'json', 'ct': 24, 'cv': 0},
+              'req_0': {
+                'module': 'music.login.LoginServer',
+                'method': 'Login',
+                'param': {
+                  'openid': openid,
+                  'access_token': oauthToken,
+                  'str_musicid': uin.replaceAll(RegExp(r'\D'), ''),
+                },
+              },
+            }),
+            options: Options(
+              headers: {
+                'Cookie': 'uin=$uin; skey=${jar['skey']}; p_skey=$pSkey',
+                'Referer': 'https://y.qq.com',
+              },
+              contentType: 'application/json',
+            ),
+          );
+          final body = oauthLogin.data ?? '';
+          debugPrint('[QqLogin] Login(openid) → ${oauthLogin.statusCode}, '
+              'set-cookie: [${(oauthLogin.headers['set-cookie'] ?? const []).map((l) => l.split(';').first.split('=').first).join(',')}], '
+              'body: ${body.substring(0, body.length > 300 ? 300 : body.length)}');
+          await _captureCookies(
+              'https://u.y.qq.com/cgi-bin/musicu.fcg', oauthLogin);
+        }
+      } catch (e) {
+        debugPrint('[QqLogin] OAuth 换票异常: $e');
+      }
+      // 先检查 OAuth 链是否已换到票据
+      jar = await _jarCookies();
+      final earlyKey = jar['qqmusic_key'] ?? jar['qm_keyst'];
+      if (earlyKey != null && earlyKey.isNotEmpty) {
+        return QqQrResult(QqQrStep.success,
+            message: '登录成功', uin: uin.replaceAll(RegExp(r'\D'), ''));
+      }
+    }
+
+    // 2b) 旧式链：Login(str_musicid)（部分账号走这条）
     try {
       final loginResp = await _plainDio.post<String>(
         'https://u.y.qq.com/cgi-bin/musicu.fcg',

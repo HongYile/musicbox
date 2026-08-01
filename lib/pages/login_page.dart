@@ -11,6 +11,8 @@ import '../providers.dart';
 import '../services/sources/bilibili/models.dart';
 import '../services/sources/qqmusic/api/qq_login.dart';
 import '../services/sync/webdav_client.dart';
+import '../services/update/update_checker.dart';
+import '../services/update/update_prompt.dart';
 
 /// 登录页 UI 状态。
 class LoginUiState {
@@ -168,6 +170,14 @@ class LoginPage extends ConsumerWidget {
             selected: {ref.watch(themeModeProvider)},
             onSelectionChanged: (s) =>
                 ref.read(themeModeProvider.notifier).set(s.first),
+          ),
+          const SizedBox(height: 20),
+          Text('当前版本 ${UpdateChecker.currentVersion}',
+              style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          TextButton.icon(
+            onPressed: () => checkAndPromptUpdate(context, manual: true),
+            icon: const Icon(Icons.system_update_alt, size: 18),
+            label: const Text('检查更新'),
           ),
         ],
         ),

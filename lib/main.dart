@@ -31,6 +31,10 @@ import 'services/sources/netease/api/ncm_endpoints.dart';
 import 'services/sources/qqmusic/api/qq_client.dart';
 import 'services/sources/qqmusic/api/qq_endpoints.dart';
 import 'services/sync/webdav_client.dart';
+import 'services/update/update_prompt.dart';
+
+/// 全局导航 key（应用内更新弹窗用）。
+final navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -171,6 +175,12 @@ Future<void> main() async {
               container.read(syncServiceProvider).pushDebounced();
             }
           });
+
+          // 启动后自动检查更新（静默，尊重"不再提醒此版本"）
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final ctx = navigatorKey.currentContext;
+            if (ctx != null) checkAndPromptUpdate(ctx);
+          });
           return const MusicboxApp();
         },
       ),
@@ -187,6 +197,7 @@ class MusicboxApp extends ConsumerWidget {
     return MaterialApp(
       title: 'musicbox',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       theme: _buildTheme(),
       darkTheme: _buildDarkTheme(),
       themeMode: mode,

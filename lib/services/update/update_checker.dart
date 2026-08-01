@@ -43,7 +43,7 @@ class UpdateChecker {
 
   static const _repos = {
     UpdateSource.github: 'HongYile/musicbox',
-    UpdateSource.gitee: 'HongYile/musicbox',
+    UpdateSource.gitee: 'Qq2454292378/musicbox',
   };
 
   final UpdateSource source;

@@ -392,34 +392,52 @@ class _NutstoreCardState extends ConsumerState<_NutstoreCard> {
     });
   }
 
-  Future<void> _syncNow() async {
+  Future<void> _push() async {
     setState(() {
       _busy = true;
-      _message = '同步中…';
+      _message = '推送中（本地 → 云端）…';
     });
     try {
-      // 始终用输入框当前值构建新客户端，杜绝过期缓存凭证导致的 401
-      final fresh = _freshClient();
-      ref.read(webDavClientProvider.notifier).state = fresh;
-      final sync = ref.read(syncServiceProvider);
-      final (imported, _) = await sync.pull();
-      // 手动拉取成功也打开闸门（本 session 允许后续防抖推送）
-      ref.read(syncPulledOnceProvider.notifier).state = true;
-      await sync.push();
-      ref.read(playlistsProvider.notifier).refresh();
+      ref.read(webDavClientProvider.notifier).state = _freshClient();
+      await ref.read(syncServiceProvider).push();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(
           'nutstore_last_sync_ms', DateTime.now().millisecondsSinceEpoch);
-      setState(() => _message = imported ? '已拉取远程并推送本地' : '已推送本地到坚果云');
+      setState(() => _message = '已推送到云端（library.json 已覆盖为本地曲库）');
     } catch (e) {
-      final msg = '$e';
-      setState(() => _message = msg.contains('401')
-          ? '账号或应用密码错误（要用「第三方应用管理」生成的应用密码，'
-              '不是登录密码；粘贴的空格已自动去除，请重新保存账号）'
-          : '同步失败: $e');
+      setState(() => _message = _errText(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _pull() async {
+    setState(() {
+      _busy = true;
+      _message = '拉取中（云端 → 本地）…';
+    });
+    try {
+      ref.read(webDavClientProvider.notifier).state = _freshClient();
+      final (imported, remoteAt) = await ref.read(syncServiceProvider).pull();
+      ref.read(syncPulledOnceProvider.notifier).state = true;
+      ref.read(playlistsProvider.notifier).refresh();
+      setState(() => _message = imported
+          ? '已从云端拉取合并到本地（远端更新于 $remoteAt）'
+          : '云端没有新数据可拉取');
+    } catch (e) {
+      setState(() => _message = _errText(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _errText(Object e) {
+    final msg = '$e';
+    if (msg.contains('401')) {
+      return '账号或应用密码错误（要用「第三方应用管理」生成的应用密码，'
+          '不是登录密码；粘贴的空格已自动去除，请重新保存账号）';
+    }
+    return '操作失败: $e';
   }
 
   @override
@@ -458,9 +476,16 @@ class _NutstoreCardState extends ConsumerState<_NutstoreCard> {
             FilledButton.tonal(onPressed: _save, child: const Text('保存账号')),
             const SizedBox(width: 10),
             if (_hasAccount) ...[
-              FilledButton(
-                onPressed: _busy ? null : _syncNow,
-                child: Text(_busy ? '同步中…' : '立即同步'),
+              FilledButton.icon(
+                onPressed: _busy ? null : _pull,
+                icon: const Icon(Icons.cloud_download, size: 18),
+                label: const Text('拉取'),
+              ),
+              const SizedBox(width: 10),
+              FilledButton.tonalIcon(
+                onPressed: _busy ? null : _push,
+                icon: const Icon(Icons.cloud_upload, size: 18),
+                label: const Text('推送'),
               ),
               const SizedBox(width: 10),
               TextButton(onPressed: _clear, child: const Text('清除')),

@@ -146,7 +146,16 @@ Future<void> main() async {
         downloadServiceProvider.overrideWithValue(downloadService),
         webDavClientProvider.overrideWith((ref) => webDavClient),
       ],
-      child: const MusicboxApp(),
+      child: Builder(
+        builder: (context) {
+          // 曲库变化 → 防抖推送坚果云（配置了才生效）
+          final container = ProviderScope.containerOf(context);
+          container.listen(playlistsProvider, (prev, next) {
+            container.read(syncServiceProvider).pushDebounced();
+          });
+          return const MusicboxApp();
+        },
+      ),
     ),
   );
 }
@@ -308,10 +317,6 @@ class HomeShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final index = ref.watch(navIndexProvider);
-    // 曲库变化 → 防抖推送坚果云（配置了才生效）
-    ref.listen(playlistsProvider, (prev, next) {
-      ref.read(syncServiceProvider).pushDebounced();
-    });
     return Scaffold(
       backgroundColor: Colors.transparent, // 透出 TechBackground
       body: TechBackground(

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -187,6 +189,7 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
   String _message = '点击生成二维码，用手机 QQ 扫码登录';
   bool _busy = false;
   bool _success = false;
+  QqQrStep? _phase; // 当前扫码阶段（待确认时模糊二维码）
   StreamSubscription<QqQrResult>? _sub;
 
   @override
@@ -212,6 +215,7 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
       });
       _sub = login.poll(session).listen((r) {
         if (!mounted) return;
+        setState(() => _phase = r.step);
         switch (r.step) {
           case QqQrStep.waiting:
             setState(() => _message = '请用手机 QQ 扫码');
@@ -289,11 +293,7 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
           ),
         ] else ...[
           if (_session != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.memory(_session!.qrPng,
-                  width: 200, height: 200, fit: BoxFit.contain),
-            )
+            _QrWithBlur(png: _session!.qrPng, blurred: _phase != null && _phase != QqQrStep.waiting)
           else
             const Icon(Icons.qr_code_2, size: 100),
           const SizedBox(height: 10),
@@ -443,6 +443,43 @@ class _NutstoreCardState extends ConsumerState<_NutstoreCard> {
               style: const TextStyle(color: Colors.grey, fontSize: 12)),
         ],
       ],
+    );
+  }
+}
+
+/// 二维码（已扫码待确认/换票中/失效时模糊 + 状态角标）。
+class _QrWithBlur extends StatelessWidget {
+  const _QrWithBlur({required this.png, required this.blurred});
+
+  final Uint8List png;
+  final bool blurred;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 200,
+        height: 200,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ImageFiltered(
+              imageFilter:
+                  ImageFilter.blur(sigmaX: blurred ? 6 : 0, sigmaY: blurred ? 6 : 0),
+              child: Image.memory(png, fit: BoxFit.contain),
+            ),
+            if (blurred)
+              const Center(
+                child: CircleAvatar(
+                  radius: 26,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.check, color: Color(0xFF20B486), size: 34),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

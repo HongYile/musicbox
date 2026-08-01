@@ -103,31 +103,72 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget build(BuildContext context) {
     final results = ref.watch(searchResultsProvider);
     final source = ref.watch(selectedSourceProvider);
+
+    // 各音源登录态：未登录的音源禁止搜索/切换（灰阶不可用）
+    final biliLogged = ref.watch(loginStateProvider).isLogin;
+    final qqLogged = ref.watch(qqLoginStateProvider).value ?? false;
+    final ncmLogged = ref.watch(ncmLoginStateProvider).isLogin;
+    bool loggedInFor(String id) => switch (id) {
+          'bilibili' => biliLogged,
+          'qqmusic' => qqLogged,
+          'netease' => ncmLogged,
+          _ => false,
+        };
+    final sourceLogged = loggedInFor(source);
+
+    Widget segmentLabel(String id, String text) => Text(
+          text,
+          style: loggedInFor(id)
+              ? null
+              : TextStyle(
+                  color: Theme.of(context).disabledColor,
+                  decoration: TextDecoration.none,
+                ),
+        );
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           child: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'bilibili', label: Text('哔哩哔哩')),
-              ButtonSegment(value: 'netease', label: Text('网易云音乐')),
-              ButtonSegment(value: 'qqmusic', label: Text('QQ音乐')),
+            segments: [
+              ButtonSegment(
+                  value: 'bilibili', label: segmentLabel('bilibili', '哔哩哔哩')),
+              ButtonSegment(
+                  value: 'netease', label: segmentLabel('netease', '网易云音乐')),
+              ButtonSegment(
+                  value: 'qqmusic', label: segmentLabel('qqmusic', 'QQ音乐')),
             ],
             selected: {source},
-            onSelectionChanged: (s) =>
-                ref.read(selectedSourceProvider.notifier).state = s.first,
+            onSelectionChanged: (s) {
+              final target = s.first;
+              if (!loggedInFor(target)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('该音源未登录，请先到「我的」页登录')));
+                return;
+              }
+              ref.read(selectedSourceProvider.notifier).state = target;
+              // 已登录则切换：当前关键词自动在新音源重搜
+              final kw = _controller.text.trim();
+              if (kw.isNotEmpty) {
+                ref.read(searchResultsProvider.notifier).search(kw);
+              }
+            },
           ),
         ),
         Padding(
           padding: const EdgeInsets.all(12),
           child: TextField(
             controller: _controller,
+            enabled: sourceLogged,
             decoration: InputDecoration(
-              hintText: switch (source) {
-                'netease' => '搜索网易云单曲',
-                'qqmusic' => '搜索 QQ 音乐（绿钻可播无损）',
-                _ => '搜索 B站视频/音乐稿件',
-              },
+              hintText: !sourceLogged
+                  ? '该音源未登录，请到「我的」页登录后搜索'
+                  : switch (source) {
+                      'netease' => '搜索网易云单曲',
+                      'qqmusic' => '搜索 QQ 音乐（绿钻可播无损）',
+                      _ => '搜索 B站视频/音乐稿件',
+                    },
               prefixIcon: const Icon(Icons.search),
               border: const OutlineInputBorder(),
               suffixIcon: _opening

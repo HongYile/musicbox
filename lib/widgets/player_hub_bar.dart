@@ -60,8 +60,8 @@ class PlayerHubBar extends ConsumerWidget {
                       Theme.of(context).brightness == Brightness.dark
                           ? Colors.white.withValues(alpha: 0.12)
                           : const Color(0xFFDFE6EE),
-                  valueColor:
-                      const AlwaysStoppedAnimation(Color(0xFF2864F0)),
+                  valueColor: AlwaysStoppedAnimation(
+                      Theme.of(context).colorScheme.primary),
                 ),
               ),
               SizedBox(
@@ -145,14 +145,19 @@ class PlayerHubBar extends ConsumerWidget {
                         Container(
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: const LinearGradient(
+                            gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [Color(0xFF3CCBD9), Color(0xFF2864F0)],
+                              colors: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const [Color(0xFFEC407A), Color(0xFF9C7CFF)]
+                                  : const [Color(0xFF3CCBD9), Color(0xFF2864F0)],
                             ),
                             boxShadow: [
                               BoxShadow(
-                                  color: const Color(0xFF2864F0)
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
                                       .withValues(alpha: 0.35),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4)),

@@ -7,12 +7,13 @@ import 'package:flutter/material.dart';
 class EqBars extends StatefulWidget {
   const EqBars({
     super.key,
-    this.color = const Color(0xFF2864F0),
+    this.color,
     this.size = 18,
     this.animate = true,
   });
 
-  final Color color;
+  /// 默认取主题 primary（暗色=洋红，亮色=蓝）。
+  final Color? color;
   final double size;
   final bool animate;
 
@@ -44,6 +45,7 @@ class _EqBarsState extends State<EqBars> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final barColor = widget.color ?? Theme.of(context).colorScheme.primary;
     return AnimatedBuilder(
       animation: _c,
       builder: (context, _) {
@@ -69,7 +71,7 @@ class _EqBarsState extends State<EqBars> with SingleTickerProviderStateMixin {
                   width: widget.size / 5.5,
                   height: widget.size * h,
                   decoration: BoxDecoration(
-                    color: widget.color,
+                    color: barColor,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

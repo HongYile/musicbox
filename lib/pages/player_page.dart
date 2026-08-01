@@ -148,20 +148,27 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
                         animation: _glow,
                         builder: (context, child) {
                           final t = _glow.value;
+                          final dark = Theme.of(context).brightness ==
+                              Brightness.dark;
+                          final glowA = dark
+                              ? const Color(0xFFEC407A)
+                              : const Color(0xFF3CCBD9);
+                          final glowB = dark
+                              ? const Color(0xFF9C7CFF)
+                              : const Color(0xFF2864F0);
                           return Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
                               boxShadow: [
                                 BoxShadow(
-                                    color: const Color(0xFF3CCBD9)
-                                        .withValues(alpha: 0.28 + 0.18 * t),
+                                    color: glowA.withValues(
+                                        alpha: 0.28 + 0.18 * t),
                                     blurRadius: 45,
                                     spreadRadius: 2 + 3 * t,
                                     offset: const Offset(-6, 10)),
                                 BoxShadow(
-                                    color: const Color(0xFF2864F0)
-                                        .withValues(
-                                            alpha: 0.28 + 0.18 * (1 - t)),
+                                    color: glowB.withValues(
+                                        alpha: 0.28 + 0.18 * (1 - t)),
                                     blurRadius: 45,
                                     spreadRadius: 2 + 3 * (1 - t),
                                     offset: const Offset(6, 10)),
@@ -297,14 +304,19 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
                         Container(
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: const LinearGradient(
+                            gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: [Color(0xFF3CCBD9), Color(0xFF2864F0)],
+                              colors: Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? const [Color(0xFFEC407A), Color(0xFF9C7CFF)]
+                                  : const [Color(0xFF3CCBD9), Color(0xFF2864F0)],
                             ),
                             boxShadow: [
                               BoxShadow(
-                                  color: const Color(0xFF2864F0)
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
                                       .withValues(alpha: 0.40),
                                   blurRadius: 20,
                                   offset: const Offset(0, 8)),

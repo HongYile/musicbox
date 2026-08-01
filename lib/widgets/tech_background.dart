@@ -28,7 +28,7 @@ class _TechBackgroundState extends State<TechBackground>
     final dark = Theme.of(context).brightness == Brightness.dark;
     return Stack(
       children: [
-        // 底：145° 渐变（亮：浅蓝白 / 暗：深灰蓝）
+        // 底：145° 渐变（亮：浅蓝白 / 暗：深紫罗兰）
         Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -36,7 +36,7 @@ class _TechBackgroundState extends State<TechBackground>
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: dark
-                    ? const [Color(0xFF141419), Color(0xFF101014)]
+                    ? const [Color(0xFF17101F), Color(0xFF110C19)]
                     : const [Color(0xFFF8FBFF), Color(0xFFEEF4F9)],
               ),
             ),
@@ -55,17 +55,21 @@ class _TechBackgroundState extends State<TechBackground>
                   top: -90 + 26 * t,
                   left: -70 + 18 * t,
                   child: _GlowBlob(
-                      color: const Color(0xFF3CCBD9),
+                      color: dark
+                          ? const Color(0xFF7C4DFF)
+                          : const Color(0xFF3CCBD9),
                       size: 280,
-                      alpha: dark ? 0.12 : 0.20),
+                      alpha: dark ? 0.16 : 0.20),
                 ),
                 Positioned(
                   right: -80 + 22 * t,
                   bottom: -70 + 30 * (1 - t),
                   child: _GlowBlob(
-                      color: const Color(0xFF8AAEFF),
+                      color: dark
+                          ? const Color(0xFFEC407A)
+                          : const Color(0xFF8AAEFF),
                       size: 300,
-                      alpha: dark ? 0.14 : 0.20),
+                      alpha: dark ? 0.13 : 0.20),
                 ),
               ],
             );

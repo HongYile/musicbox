@@ -268,26 +268,26 @@ ThemeData _buildTheme() {
   );
 }
 
-/// 暗色主题：仿 QQ 音乐的深色高级感。
+/// 暗色主题：紫韵（参考 UI 世界音乐播放器设计）。
 ///
-/// 底 #151518、面 #1F1F24、细边白 8%、主色青 #3CCBD9、辅色蓝紫 #8AAEFF；
-/// 与亮色共用同一套圆角体系。
+/// 底 #14101F、面 #221A33、主色洋红 #EC407A、辅色紫 #9C7CFF；
+/// 细边白 8%，与亮色共用同一套圆角体系。
 ThemeData _buildDarkTheme() {
-  const cyan = Color(0xFF3CCBD9);
-  const periwinkle = Color(0xFF8AAEFF);
-  const surface = Color(0xFF1F1F24);
+  const pink = Color(0xFFEC407A);
+  const violet = Color(0xFF9C7CFF);
+  const surface = Color(0xFF221A33);
   final line = Colors.white.withValues(alpha: 0.08);
 
   final scheme = ColorScheme.dark(
-    primary: cyan,
-    secondary: periwinkle,
+    primary: pink,
+    secondary: violet,
     surface: surface,
   );
 
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: const Color(0xFF151518),
+    scaffoldBackgroundColor: const Color(0xFF14101F),
     cardTheme: CardThemeData(
       color: surface,
       elevation: 0,
@@ -321,10 +321,10 @@ ThemeData _buildDarkTheme() {
       ),
     ),
     navigationRailTheme: NavigationRailThemeData(
-      backgroundColor: const Color(0xB31A1A1E),
-      indicatorColor: cyan.withValues(alpha: 0.18),
-      selectedIconTheme: const IconThemeData(color: cyan),
-      selectedLabelTextStyle: const TextStyle(color: cyan),
+      backgroundColor: const Color(0xB31B1428),
+      indicatorColor: pink.withValues(alpha: 0.20),
+      selectedIconTheme: const IconThemeData(color: pink),
+      selectedLabelTextStyle: const TextStyle(color: pink),
     ),
     dividerColor: line,
     snackBarTheme: SnackBarThemeData(

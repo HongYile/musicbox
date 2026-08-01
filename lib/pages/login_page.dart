@@ -292,20 +292,30 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
             child: const Text('退出登录'),
           ),
         ] else ...[
-          if (_session != null)
-            _QrWithBlur(png: _session!.qrPng, blurred: _phase != null && _phase != QqQrStep.waiting)
-          else
-            const Icon(Icons.qr_code_2, size: 100),
-          const SizedBox(height: 10),
-          Text(_message, style: const TextStyle(fontSize: 12)),
-          const SizedBox(height: 10),
+          const Text('内嵌官方网页登录（扫码不稳定的账号也能用）',
+              style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const SizedBox(height: 8),
           FilledButton(
-            onPressed: _busy && _session != null ? null : _startQr,
-            child: Text(_session == null ? '生成登录二维码' : '刷新二维码'),
-          ),
-          TextButton(
             onPressed: _loginWebView,
-            child: const Text('扫码失败？试试网页登录', style: TextStyle(fontSize: 12)),
+            child: const Text('登录 QQ 音乐（官方网页）'),
+          ),
+          if (_session != null) ...[
+            const SizedBox(height: 10),
+            _QrWithBlur(
+                png: _session!.qrPng,
+                blurred: _phase != null && _phase != QqQrStep.waiting),
+          ],
+          const SizedBox(height: 6),
+          Text(_message, style: const TextStyle(fontSize: 12)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: _busy && _session != null ? null : _startQr,
+                child: Text(_session == null ? '实验：试试扫码' : '刷新二维码',
+                    style: const TextStyle(fontSize: 12)),
+              ),
+            ],
           ),
         ],
       ],

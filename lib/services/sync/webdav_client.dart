@@ -47,11 +47,11 @@ class WebDavClient {
     return code >= 200 && code < 300;
   }
 
-  /// 下载文件；不存在返回 null。
+  /// 下载文件；不存在（404，或坚果云祖先缺失的 409）返回 null。
   Future<Uint8List?> get(String path) async {
     final resp = await _dio.get<List<int>>(path,
         options: Options(responseType: ResponseType.bytes));
-    if (resp.statusCode == 404) return null;
+    if (resp.statusCode == 404 || resp.statusCode == 409) return null;
     if ((resp.statusCode ?? 0) >= 400) {
       var detail = '';
       try {
@@ -79,7 +79,7 @@ class WebDavClient {
         headers: {'Depth': '0', 'Content-Type': 'application/xml'},
       ),
     );
-    if (resp.statusCode == 404) return null;
+    if (resp.statusCode == 404 || resp.statusCode == 409) return null;
     final body = resp.data ?? '';
     final match =
         RegExp(r'getlastmodified[^>]*>([^<]+)<').firstMatch(body);

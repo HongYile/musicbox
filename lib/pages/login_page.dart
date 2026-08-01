@@ -360,13 +360,24 @@ class _NutstoreCardState extends ConsumerState<_NutstoreCard> {
     final store = ref.read(tokenStoreProvider);
     await store.write(key: kNutstoreEmailKey, value: _email.text.trim());
     await store.write(key: kNutstorePasswordKey, value: _password.text.trim());
-    ref.read(webDavClientProvider.notifier).state = WebDavClient(
-        email: _email.text.trim(), appPassword: _password.text.trim());
-    setState(() {
-      _hasAccount = true;
-      _message = '已保存账号';
-    });
+    final client = _freshClient();
+    ref.read(webDavClientProvider.notifier).state = client;
+    setState(() => _hasAccount = true);
+    // 保存即测连：PROPFIND 根目录验证凭证有效
+    setState(() => _busy = true);
+    try {
+      await client.mkcol('/musicbox');
+      setState(() => _message = '连接成功，账号有效');
+    } catch (e) {
+      setState(() => _message = '连接失败: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
+
+  /// 用当前输入框的值构建全新客户端（避免用过期缓存凭证）。
+  WebDavClient _freshClient() => WebDavClient(
+      email: _email.text.trim(), appPassword: _password.text.trim());
 
   Future<void> _clear() async {
     final store = ref.read(tokenStoreProvider);
@@ -387,6 +398,9 @@ class _NutstoreCardState extends ConsumerState<_NutstoreCard> {
       _message = '同步中…';
     });
     try {
+      // 始终用输入框当前值构建新客户端，杜绝过期缓存凭证导致的 401
+      final fresh = _freshClient();
+      ref.read(webDavClientProvider.notifier).state = fresh;
       final sync = ref.read(syncServiceProvider);
       final (imported, _) = await sync.pull();
       await sync.push();

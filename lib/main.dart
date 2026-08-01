@@ -29,7 +29,6 @@ import 'services/sources/netease/api/ncm_client.dart';
 import 'services/sources/netease/api/ncm_endpoints.dart';
 import 'services/sources/qqmusic/api/qq_client.dart';
 import 'services/sources/qqmusic/api/qq_endpoints.dart';
-import 'services/sync/library_sync.dart';
 import 'services/sync/webdav_client.dart';
 
 Future<void> main() async {
@@ -91,7 +90,7 @@ Future<void> main() async {
     dir: '${docsDir.path}/downloads',
   );
 
-  // 坚果云同步：读取已保存凭证，配置了就在启动时拉取一次。
+  // 坚果云同步：读取已保存凭证（拉取在 ProviderScope 就绪后进行，见 Builder）。
   final nutstoreEmail = await tokenStore.read(key: kNutstoreEmailKey);
   final nutstorePassword = await tokenStore.read(key: kNutstorePasswordKey);
   WebDavClient? webDavClient;
@@ -101,23 +100,6 @@ Future<void> main() async {
       nutstorePassword.isNotEmpty) {
     webDavClient = WebDavClient(
         email: nutstoreEmail, appPassword: nutstorePassword);
-    unawaited(() async {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final lastSyncMs = prefs.getInt('nutstore_last_sync_ms');
-        final (imported, _) = await LibrarySyncService(libraryDb, webDavClient)
-            .pull(
-                localUpdatedAt: lastSyncMs == null
-                    ? null
-                    : DateTime.fromMillisecondsSinceEpoch(lastSyncMs));
-        if (imported) {
-          await prefs.setInt('nutstore_last_sync_ms',
-              DateTime.now().millisecondsSinceEpoch);
-        }
-      } catch (_) {
-        // 同步失败不阻塞启动
-      }
-    }());
   }
 
   // 后台播放 + 系统媒体控制（macOS Now Playing/媒体键）：
@@ -148,10 +130,39 @@ Future<void> main() async {
       ],
       child: Builder(
         builder: (context) {
-          // 曲库变化 → 防抖推送坚果云（配置了才生效）
           final container = ProviderScope.containerOf(context);
+
+          // 启动拉取（配置了才执行）：完成后才打开防抖推送闸门，
+          // 杜绝"未拉先推"把空库覆盖到云端。
+          if (webDavClient != null) {
+            unawaited(() async {
+              try {
+                final prefs = await SharedPreferences.getInstance();
+                final lastSyncMs = prefs.getInt('nutstore_last_sync_ms');
+                final (imported, _) = await container
+                    .read(syncServiceProvider)
+                    .pull(
+                        localUpdatedAt: lastSyncMs == null
+                            ? null
+                            : DateTime.fromMillisecondsSinceEpoch(lastSyncMs));
+                if (imported) {
+                  await prefs.setInt('nutstore_last_sync_ms',
+                      DateTime.now().millisecondsSinceEpoch);
+                  container.read(playlistsProvider.notifier).refresh();
+                }
+              } catch (_) {
+                // 同步失败不阻塞启动（闸门保持关闭）
+                return;
+              }
+              container.read(syncPulledOnceProvider.notifier).state = true;
+            }());
+          }
+
+          // 曲库变化 → 防抖推送（必须已成功拉取过一次才允许）
           container.listen(playlistsProvider, (prev, next) {
-            container.read(syncServiceProvider).pushDebounced();
+            if (container.read(syncPulledOnceProvider)) {
+              container.read(syncServiceProvider).pushDebounced();
+            }
           });
           return const MusicboxApp();
         },

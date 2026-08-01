@@ -102,6 +102,10 @@ final qqAuthServiceProvider =
 const kNutstoreEmailKey = 'nutstore_email';
 const kNutstorePasswordKey = 'nutstore_password';
 
+/// 本 session 是否已成功拉取过一次（防"启动即推空库覆盖云端"事故）。
+/// 只有拉取成功（含远端为空）后才允许防抖推送。
+final syncPulledOnceProvider = StateProvider<bool>((ref) => false);
+
 /// WebDAV 客户端（main() 注入已配置实例；保存账号后运行时更新）。
 final webDavClientProvider = StateProvider<WebDavClient?>(
   (ref) => throw UnimplementedError('must override in main'),

@@ -403,6 +403,8 @@ class _NutstoreCardState extends ConsumerState<_NutstoreCard> {
       ref.read(webDavClientProvider.notifier).state = fresh;
       final sync = ref.read(syncServiceProvider);
       final (imported, _) = await sync.pull();
+      // 手动拉取成功也打开闸门（本 session 允许后续防抖推送）
+      ref.read(syncPulledOnceProvider.notifier).state = true;
       await sync.push();
       ref.read(playlistsProvider.notifier).refresh();
       final prefs = await SharedPreferences.getInstance();

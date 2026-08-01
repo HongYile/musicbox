@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 import '../providers.dart';
 import '../services/sources/bilibili/models.dart';
@@ -178,6 +179,13 @@ class LoginPage extends ConsumerWidget {
             onPressed: () => checkAndPromptUpdate(context, manual: true),
             icon: const Icon(Icons.system_update_alt, size: 18),
             label: const Text('检查更新'),
+          ),
+          TextButton.icon(
+            onPressed: () =>
+                launchUrlString('https://github.com/HongYile/musicbox'),
+            icon: const Icon(Icons.code, size: 18),
+            label: const Text('项目地址 github.com/HongYile/musicbox',
+                style: TextStyle(fontSize: 12)),
           ),
         ],
         ),

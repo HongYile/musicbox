@@ -69,7 +69,7 @@ Future<void> checkAndPromptUpdate(BuildContext context,
               Navigator.of(dialogContext).pop();
               _runSelfUpdate(context, release);
             },
-            child: const Text('自动更新'),
+            child: const Text('更新'),
           )
         else
           FilledButton(

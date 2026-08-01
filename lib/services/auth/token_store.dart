@@ -59,6 +59,10 @@ class TokenStore {
   }
 
   Future<String?> read({required String key}) async {
+    // 文件优先：ad-hoc 临时签名每次构建都变，钥匙串条目跨构建读不到，
+    // 文件是唯一跨版本稳定的存储（个人自用场景）。
+    final fromFile = await _readFallback(key);
+    if (fromFile != null) return fromFile;
     if (!_secureBroken) {
       try {
         return await _storage.read(key: key);
@@ -68,24 +72,25 @@ class TokenStore {
         _secureBroken = true;
       }
     }
-    return _readFallback(key);
+    return null;
   }
 
   Future<void> write({required String key, required String value}) async {
+    // 双写：文件为主，钥匙串为辅（iOS/Android 上多一层系统级保护）。
+    await _writeFallback(key, value);
     if (!_secureBroken) {
       try {
         await _storage.write(key: key, value: value);
-        return;
       } on PlatformException {
         _secureBroken = true;
       } catch (_) {
         _secureBroken = true;
       }
     }
-    await _writeFallback(key, value);
   }
 
   Future<void> delete({required String key}) async {
+    await _deleteFallback(key);
     if (!_secureBroken) {
       try {
         await _storage.delete(key: key);
@@ -93,6 +98,5 @@ class TokenStore {
         _secureBroken = true;
       }
     }
-    await _deleteFallback(key);
   }
 }

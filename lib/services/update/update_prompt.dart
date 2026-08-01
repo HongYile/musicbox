@@ -84,28 +84,57 @@ Future<void> checkAndPromptUpdate(BuildContext context,
   );
 }
 
-/// 自动更新流程：进度弹窗 → 下载 → 安装 → 重启提示。
+/// 自动更新流程：进度弹窗（百分比+暂停/继续/取消）→ 安装 → 重启提示。
 Future<void> _runSelfUpdate(BuildContext context, AppRelease release) async {
-  final progress = ValueNotifier<(double, String)>((0, '准备下载…'));
+  final dmg = '${Directory.systemTemp.path}/musicbox-${release.tag}.dmg';
+  final dl = ResumableDownload(release.dmgUrl!, dmg);
+  final progress = ValueNotifier<(int, int, String)>((0, -1, '准备下载…'));
 
-  // 进度弹窗（不可手动关闭，防止中途打断）
   unawaited(showDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (dialogContext) => ValueListenableBuilder<(double, String)>(
+    builder: (dialogContext) => ValueListenableBuilder<(int, int, String)>(
       valueListenable: progress,
       builder: (context, value, _) {
-        final (p, status) = value;
+        final (received, total, status) = value;
+        final ratio = total > 0 ? received / total : null;
+        final mb = (received / 1024 / 1024).toStringAsFixed(1);
+        final totalMb =
+            total > 0 ? ' / ${(total / 1024 / 1024).toStringAsFixed(1)}' : '';
+        final percent =
+            ratio != null ? '${(ratio * 100).toStringAsFixed(0)}%' : '';
         return AlertDialog(
-          title: const Text('正在自动更新'),
+          title: const Text('正在更新'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              LinearProgressIndicator(value: p > 0 ? p : null),
+              LinearProgressIndicator(value: ratio),
               const SizedBox(height: 12),
-              Text(status, style: const TextStyle(fontSize: 13)),
+              Text('$status  $mb$totalMb MB  $percent',
+                  style: const TextStyle(fontSize: 13)),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                if (dl.paused) {
+                  dl.resume();
+                  progress.value = (dl.received, dl.total, '继续下载…');
+                } else {
+                  dl.pause();
+                  progress.value = (dl.received, dl.total, '已暂停');
+                }
+              },
+              child: Text(dl.paused ? '继续' : '暂停'),
+            ),
+            TextButton(
+              onPressed: () {
+                dl.cancel();
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('取消'),
+            ),
+          ],
         );
       },
     ),
@@ -116,19 +145,13 @@ Future<void> _runSelfUpdate(BuildContext context, AppRelease release) async {
   }
 
   try {
-    final updater = SelfUpdater();
-    final dmg =
-        '${Directory.systemTemp.path}/musicbox-${release.tag}.dmg';
-    progress.value = (0, '下载 ${release.tag}…');
-    await updater.download(release.dmgUrl!, dmg, (received, total) {
-      progress.value = (
-        total > 0 ? received / total : -1,
-        '下载中 ${(received / 1024 / 1024).toStringAsFixed(1)} MB'
-            '${total > 0 ? ' / ${(total / 1024 / 1024).toStringAsFixed(1)} MB' : ''}'
-      );
+    await dl.run((received, total) {
+      if (!dl.paused) {
+        progress.value = (received, total, '下载 ${release.tag} 中…');
+      }
     });
-    progress.value = (1, '安装中（替换旧版本）…');
-    await updater.installFromDmg(dmg);
+    progress.value = (dl.received, dl.total, '安装中（替换旧版本）…');
+    await SelfUpdater().installFromDmg(dmg);
     closeProgress();
 
     if (!context.mounted) return;
@@ -152,7 +175,7 @@ Future<void> _runSelfUpdate(BuildContext context, AppRelease release) async {
     closeProgress();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('自动更新失败: $e（可改用「去下载页」手动安装）')));
+          SnackBar(content: Text('更新失败: $e（可改用「去下载页」手动安装）')));
     }
   }
 }

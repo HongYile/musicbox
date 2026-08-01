@@ -57,19 +57,17 @@ class _TechBackgroundState extends State<TechBackground>
                   child: _GlowBlob(
                       color: dark
                           ? const Color(0xFF7C4DFF)
-                          : const Color(0xFF3CCBD9),
+                          : const Color(0xFF9C7CFF),
                       size: 280,
-                      alpha: dark ? 0.16 : 0.20),
+                      alpha: dark ? 0.16 : 0.18),
                 ),
                 Positioned(
                   right: -80 + 22 * t,
                   bottom: -70 + 30 * (1 - t),
                   child: _GlowBlob(
-                      color: dark
-                          ? const Color(0xFFEC407A)
-                          : const Color(0xFF8AAEFF),
+                      color: const Color(0xFFEC407A),
                       size: 300,
-                      alpha: dark ? 0.13 : 0.20),
+                      alpha: dark ? 0.13 : 0.14),
                 ),
               ],
             );

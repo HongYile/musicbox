@@ -152,10 +152,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
                               Brightness.dark;
                           final glowA = dark
                               ? const Color(0xFFEC407A)
-                              : const Color(0xFF3CCBD9);
+                              : const Color(0xFF7C4DFF);
                           final glowB = dark
                               ? const Color(0xFF9C7CFF)
-                              : const Color(0xFF2864F0);
+                              : const Color(0xFFEC407A);
                           return Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(16),
@@ -307,10 +307,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                              colors: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const [Color(0xFFEC407A), Color(0xFF9C7CFF)]
-                                  : const [Color(0xFF3CCBD9), Color(0xFF2864F0)],
+                              colors: [
+                                Theme.of(context).colorScheme.primary,
+                                Theme.of(context).colorScheme.secondary,
+                              ],
                             ),
                             boxShadow: [
                               BoxShadow(

@@ -206,18 +206,19 @@ class MusicboxApp extends ConsumerWidget {
   }
 }
 
-/// 主题：workspace/tech-style-guide.md 的浅色工程科技风。
+/// 亮色主题：紫罗兰族（与暗色紫韵同族）。
 ///
-/// 蓝 #2864F0 主色 / 青 #3CCBD9 点缀 / 纸蓝 #F5F8FC 底色；
-/// 卡片 16px 圆角 + 细边 + 柔影；按钮 12px；胶囊徽章。
+/// 浅紫底 #F7F4FB、白卡、主色紫 #7C4DFF、点缀洋红 #EC407A、细边 #E6DFF2。
 ThemeData _buildTheme() {
-  const blue = Color(0xFF2864F0);
-  const paper = Color(0xFFF5F8FC);
-  const line = Color(0xFFDFE6EE);
+  const violet = Color(0xFF7C4DFF);
+  const pink = Color(0xFFEC407A);
+  const paper = Color(0xFFF7F4FB);
+  const line = Color(0xFFE6DFF2);
 
   final scheme = ColorScheme.fromSeed(
-    seedColor: blue,
-    primary: blue,
+    seedColor: violet,
+    primary: violet,
+    secondary: pink,
     surface: Colors.white,
   );
 
@@ -257,10 +258,13 @@ ThemeData _buildTheme() {
         borderSide: const BorderSide(color: line),
       ),
     ),
-    navigationBarTheme: const NavigationBarThemeData(
-      backgroundColor: Colors.white,
-      indicatorColor: Color(0x1A2864F0),
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: Colors.white.withValues(alpha: 0.72),
+      indicatorColor: violet.withValues(alpha: 0.14),
+      selectedIconTheme: const IconThemeData(color: violet),
+      selectedLabelTextStyle: const TextStyle(color: violet),
     ),
+    dividerColor: line,
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

@@ -148,3 +148,13 @@ flutter build macos --debug         # 需要完整 Xcode（CLT 不够）
 - 网易云收尾暂停（xeapi crypto 完成待用）。
 - 坚果云同步：`services/sync/`（webdav_client 最小 WebDAV、library_sync 元数据导出/导入/推拉/防抖）。凭证存 TokenStore；启动时拉取、曲库变更 3s 防抖推送（main.dart HomeShell ref.listen）。不同步音乐文件。
 - 存储策略见 docs/storage-guide.md（FLAC=无损压缩本身，不转码；云曲库下一步 R2）。
+
+## 凭证安全红线（2026-08-01 确立）
+
+- 一切账号凭证（cookie/token/应用密码）只允许经 TokenStore 写入系统目录
+  （macOS: ~/Library/Application Support/com.krelar.musicbox/secure_store/），
+  **严禁写入仓库内任何文件**（含代码、配置、文档、测试数据）。
+- 远程地址不得内嵌 token（github 用 gh 凭证助手，gitee 用 SSH key）。
+- 每次发版/批量提交前跑一遍敏感串扫描：
+  `git ls-files | xargs grep -l -E 'ghp_|SESSDATA=|qqmusic_key=|MUSIC_U=|appPassword'`
+  输出必须为空。真实凭证值（即使测试用）也不写进单测。

@@ -46,3 +46,11 @@ app.*.map.json
 
 # 打包产物
 dist/
+
+# 凭证与本地数据（严禁入库）
+secure_store/
+cookies/
+.env
+.env.*
+*_credentials*
+*.pem

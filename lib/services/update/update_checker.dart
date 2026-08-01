@@ -1,6 +1,16 @@
 import 'package:dio/dio.dart';
 
-/// 应用内更新检查：对比 GitHub Releases 最新版本。
+/// 更新源（Gitee 国内更快，默认；GitHub 备用）。
+enum UpdateSource { gitee, github }
+
+extension UpdateSourceX on UpdateSource {
+  String get label => switch (this) {
+        UpdateSource.gitee => 'Gitee（国内推荐）',
+        UpdateSource.github => 'GitHub',
+      };
+}
+
+/// 应用内更新检查：对比最新 Release。
 class AppRelease {
   const AppRelease({
     required this.tag,
@@ -20,7 +30,7 @@ class AppRelease {
 }
 
 class UpdateChecker {
-  UpdateChecker([Dio? dio])
+  UpdateChecker({this.source = UpdateSource.gitee, Dio? dio})
       : _dio = dio ??
             Dio(BaseOptions(
               connectTimeout: const Duration(seconds: 8),
@@ -29,36 +39,73 @@ class UpdateChecker {
             ));
 
   /// 当前应用版本（发版时与 pubspec.yaml、git tag 同步 bump）。
-  static const currentVersion = '0.1.0';
+  static const currentVersion = '0.1.1';
 
-  static const _repo = 'HongYile/musicbox';
+  static const _repos = {
+    UpdateSource.github: 'HongYile/musicbox',
+    UpdateSource.gitee: 'HongYile/musicbox',
+  };
 
+  final UpdateSource source;
   final Dio _dio;
 
   /// 拉取最新 Release；失败返回 null（静默，不影响使用）。
   Future<AppRelease?> checkLatest() async {
+    return switch (source) {
+      UpdateSource.github => _checkGithub(),
+      UpdateSource.gitee => _checkGitee(),
+    };
+  }
+
+  Future<AppRelease?> _checkGithub() async {
     try {
       final resp = await _dio.get<Map<String, dynamic>>(
-          'https://api.github.com/repos/$_repo/releases/latest');
+          'https://api.github.com/repos/${_repos[UpdateSource.github]}/releases/latest');
       final data = resp.data;
       if (data == null) return null;
-      String? dmgUrl;
-      for (final a in (data['assets'] as List? ?? const [])) {
-        if (a is Map && (a['name'] ?? '').toString().endsWith('.dmg')) {
-          dmgUrl = (a['browser_download_url'] ?? '') as String;
-          break;
-        }
-      }
       return AppRelease(
         tag: (data['tag_name'] ?? '') as String,
         name: (data['name'] ?? '') as String,
         notes: (data['body'] ?? '') as String,
         htmlUrl: (data['html_url'] ?? '') as String,
-        dmgUrl: dmgUrl,
+        dmgUrl: _findDmg(data['assets'] as List? ?? const []),
       );
     } catch (_) {
       return null;
     }
+  }
+
+  Future<AppRelease?> _checkGitee() async {
+    try {
+      final resp = await _dio.get<List<dynamic>>(
+        'https://gitee.com/api/v5/repos/${_repos[UpdateSource.gitee]}/releases',
+        queryParameters: {'direction': 'desc', 'limit': 1},
+      );
+      final list = resp.data;
+      if (list == null || list.isEmpty || list.first is! Map) return null;
+      final data = list.first as Map<String, dynamic>;
+      return AppRelease(
+        tag: (data['tag_name'] ?? '') as String,
+        name: (data['name'] ?? '') as String,
+        notes: (data['body'] ?? '') as String,
+        htmlUrl: (data['html_url'] ?? '') as String,
+        dmgUrl: _findDmg(data['assets'] as List? ?? const []),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _findDmg(List<dynamic> assets) {
+    for (final a in assets) {
+      if (a is Map && (a['name'] ?? '').toString().endsWith('.dmg')) {
+        // GitHub 用 browser_download_url；Gitee attach_files 同名字段，
+        // 部分版本用 download_url，做个兼容。
+        final url = a['browser_download_url'] ?? a['download_url'];
+        if (url != null && '$url'.isNotEmpty) return '$url';
+      }
+    }
+    return null;
   }
 
   /// semver 三段比较：latest 是否比 current 新（忽略前导 v 与后缀）。

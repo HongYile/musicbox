@@ -180,6 +180,8 @@ class LoginPage extends ConsumerWidget {
             icon: const Icon(Icons.system_update_alt, size: 18),
             label: const Text('检查更新'),
           ),
+          const SizedBox(height: 12),
+          const _UpdateSourceSelector(),
           TextButton.icon(
             onPressed: () =>
                 launchUrlString('https://github.com/HongYile/musicbox'),
@@ -553,6 +555,62 @@ class _QrWithBlur extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 更新源选择（Gitee 默认/GitHub），持久化到 shared_preferences。
+class _UpdateSourceSelector extends StatefulWidget {
+  const _UpdateSourceSelector();
+
+  @override
+  State<_UpdateSourceSelector> createState() => _UpdateSourceSelectorState();
+}
+
+class _UpdateSourceSelectorState extends State<_UpdateSourceSelector> {
+  UpdateSource _source = UpdateSource.gitee;
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      if (!mounted) return;
+      setState(() {
+        _source = prefs.getString(kUpdateSourceKey) == 'github'
+            ? UpdateSource.github
+            : UpdateSource.gitee;
+      });
+    });
+  }
+
+  Future<void> _set(UpdateSource s) async {
+    setState(() => _source = s);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        kUpdateSourceKey, s == UpdateSource.github ? 'github' : 'gitee');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text('更新源', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 8),
+        SegmentedButton<UpdateSource>(
+          segments: [
+            ButtonSegment(
+                value: UpdateSource.gitee,
+                label: Text(UpdateSource.gitee.label),
+                icon: const Icon(Icons.cloud)),
+            ButtonSegment(
+                value: UpdateSource.github,
+                label: Text(UpdateSource.github.label),
+                icon: const Icon(Icons.cloud_outlined)),
+          ],
+          selected: {_source},
+          onSelectionChanged: (s) => _set(s.first),
+        ),
+      ],
     );
   }
 }

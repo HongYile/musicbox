@@ -10,6 +10,9 @@ import 'update_checker.dart';
 
 const _kSkipVersionKey = 'update_skip_version';
 
+/// shared_preferences 中更新源（'gitee' 默认 / 'github'）。
+const kUpdateSourceKey = 'update_source';
+
 /// 检查更新并在有新版本时弹窗提示。
 ///
 /// [manual]=true（手动点击）时额外给出"已是最新/检查失败"反馈；
@@ -23,7 +26,11 @@ Future<void> checkAndPromptUpdate(BuildContext context,
     }
   }
 
-  final release = await UpdateChecker().checkLatest();
+  final prefs = await SharedPreferences.getInstance();
+  final source = prefs.getString(kUpdateSourceKey) == 'github'
+      ? UpdateSource.github
+      : UpdateSource.gitee;
+  final release = await UpdateChecker(source: source).checkLatest();
   if (release == null) {
     if (manual) toast('检查更新失败，请稍后再试');
     return;
@@ -33,7 +40,6 @@ Future<void> checkAndPromptUpdate(BuildContext context,
     return;
   }
 
-  final prefs = await SharedPreferences.getInstance();
   if (!manual && prefs.getString(_kSkipVersionKey) == release.tag) return;
 
   if (!context.mounted) return;
@@ -89,6 +95,15 @@ Future<void> _runSelfUpdate(BuildContext context, AppRelease release) async {
   final dmg = '${Directory.systemTemp.path}/musicbox-${release.tag}.dmg';
   final dl = ResumableDownload(release.dmgUrl!, dmg);
   final progress = ValueNotifier<(int, int, String)>((0, -1, '准备下载…'));
+  // 进度弹窗只许关闭一次（取消按钮与异常路径都会尝试关，防止把主页路由顶掉黑屏）
+  var progressOpen = true;
+
+  void closeProgress() {
+    if (progressOpen && context.mounted) {
+      progressOpen = false;
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+  }
 
   unawaited(showDialog<void>(
     context: context,
@@ -130,7 +145,7 @@ Future<void> _runSelfUpdate(BuildContext context, AppRelease release) async {
             TextButton(
               onPressed: () {
                 dl.cancel();
-                Navigator.of(dialogContext).pop();
+                closeProgress();
               },
               child: const Text('取消'),
             ),
@@ -138,11 +153,7 @@ Future<void> _runSelfUpdate(BuildContext context, AppRelease release) async {
         );
       },
     ),
-  ));
-
-  void closeProgress() {
-    if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-  }
+  ).then((_) => progressOpen = false));
 
   try {
     await dl.run((received, total) {

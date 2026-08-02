@@ -6,8 +6,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:musicbox/services/auth/cookie_refresh.dart';
-import 'package:musicbox/services/sources/bilibili/api/client.dart';
+import 'package:unison/services/auth/cookie_refresh.dart';
+import 'package:unison/services/sources/bilibili/api/client.dart';
 
 class _RecordedRequest {
   _RecordedRequest(this.method, this.uri, this.body);

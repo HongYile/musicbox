@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:musicbox/services/lyrics/lrc_parser.dart';
-import 'package:musicbox/services/player/player_service.dart';
+import 'package:unison/services/lyrics/lrc_parser.dart';
+import 'package:unison/services/player/player_service.dart';
 
 void main() {
   group('parseLrc', () {

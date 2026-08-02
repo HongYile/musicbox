@@ -10,7 +10,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:musicbox/services/sources/netease/ncm_crypto.dart';
+import 'package:unison/services/sources/netease/ncm_crypto.dart';
 import 'package:pointycastle/export.dart';
 
 Map<String, dynamic> _fixtures() {

@@ -6,7 +6,7 @@ library;
 import 'dart:io';
 
 import 'package:cookie_jar/cookie_jar.dart';
-import 'package:musicbox/services/sources/qqmusic/api/qq_login.dart';
+import 'package:unison/services/sources/qqmusic/api/qq_login.dart';
 
 Future<void> main() async {
   final jar = CookieJar();

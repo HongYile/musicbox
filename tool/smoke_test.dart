@@ -2,9 +2,9 @@
 // 运行：dart run tool/smoke_test.dart [关键词]
 import 'dart:io';
 
-import 'package:musicbox/services/sources/bilibili/api/client.dart';
-import 'package:musicbox/services/sources/bilibili/api/endpoints.dart';
-import 'package:musicbox/services/sources/bilibili/stream_select.dart';
+import 'package:unison/services/sources/bilibili/api/client.dart';
+import 'package:unison/services/sources/bilibili/api/endpoints.dart';
+import 'package:unison/services/sources/bilibili/stream_select.dart';
 
 Future<void> main(List<String> args) async {
   final keyword = args.isNotEmpty ? args.first : '周杰伦';

@@ -3,9 +3,9 @@
 library;
 
 // ignore_for_file: avoid_print
-import 'package:musicbox/services/sources/qqmusic/api/qq_client.dart';
-import 'package:musicbox/services/sources/qqmusic/api/qq_endpoints.dart';
-import 'package:musicbox/services/sources/qqmusic/stream_select.dart';
+import 'package:unison/services/sources/qqmusic/api/qq_client.dart';
+import 'package:unison/services/sources/qqmusic/api/qq_endpoints.dart';
+import 'package:unison/services/sources/qqmusic/stream_select.dart';
 
 Future<void> main() async {
   final client = QqClient.memory();

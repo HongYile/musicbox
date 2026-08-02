@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:musicbox/services/update/update_checker.dart';
+import 'package:unison/services/update/update_checker.dart';
 
 void main() {
   group('UpdateChecker.isNewer', () {

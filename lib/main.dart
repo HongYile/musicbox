@@ -119,7 +119,7 @@ Future<void> main() async {
     await AudioService.init(
       builder: () => MusicboxAudioHandler(playerService),
       config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.krelar.musicbox.audio',
+        androidNotificationChannelId: 'com.krelar.unison.audio',
         androidNotificationChannelName: 'musicbox 播放',
         androidNotificationOngoing: true,
       ),
@@ -195,7 +195,7 @@ class MusicboxApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
     return MaterialApp(
-      title: 'musicbox',
+      title: 'Unison',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
       theme: _buildTheme(),

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:musicbox/services/sources/bilibili/api/wbi_sign.dart';
+import 'package:unison/services/sources/bilibili/api/wbi_sign.dart';
 
 void main() {
   group('WbiSign', () {

@@ -6,9 +6,9 @@ library;
 
 import 'dart:io';
 
-import 'package:musicbox/services/sources/netease/api/ncm_client.dart';
-import 'package:musicbox/services/sources/netease/api/ncm_endpoints.dart';
-import 'package:musicbox/services/sources/netease/models.dart';
+import 'package:unison/services/sources/netease/api/ncm_client.dart';
+import 'package:unison/services/sources/netease/api/ncm_endpoints.dart';
+import 'package:unison/services/sources/netease/models.dart';
 
 Future<void> main(List<String> args) async {
   final keyword = args.isNotEmpty ? args.join(' ') : '周杰伦';

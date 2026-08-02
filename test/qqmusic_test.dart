@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:musicbox/services/sources/qqmusic/models.dart';
-import 'package:musicbox/services/sources/qqmusic/stream_select.dart';
+import 'package:unison/services/sources/qqmusic/models.dart';
+import 'package:unison/services/sources/qqmusic/stream_select.dart';
 
 void main() {
   group('QqSong.fromSearchJson', () {

@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:musicbox/services/sources/bilibili/hires_probe.dart';
-import 'package:musicbox/services/sources/bilibili/stream_select.dart';
+import 'package:unison/services/sources/bilibili/hires_probe.dart';
+import 'package:unison/services/sources/bilibili/stream_select.dart';
 
 StreamChoice _choice(int qualityId,
         {bool isLossless = false, bool isDolby = false}) =>

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:musicbox/services/sources/bilibili/stream_select.dart';
+import 'package:unison/services/sources/bilibili/stream_select.dart';
 
 Map<String, dynamic> _audio(int id, int bandwidth, {String? host, List<String>? backups}) => {
       'id': id,

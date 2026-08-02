@@ -39,11 +39,11 @@ class UpdateChecker {
             ));
 
   /// 当前应用版本（发版时与 pubspec.yaml、git tag 同步 bump）。
-  static const currentVersion = '0.1.2';
+  static const currentVersion = '0.2.0';
 
   static const _repos = {
-    UpdateSource.github: 'HongYile/musicbox',
-    UpdateSource.gitee: 'Qq2454292378/musicbox',
+    UpdateSource.github: 'HongYile/unison',
+    UpdateSource.gitee: 'Qq2454292378/unison',
   };
 
   final UpdateSource source;

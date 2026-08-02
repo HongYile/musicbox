@@ -5,9 +5,9 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:musicbox/services/player/audio_proxy.dart';
-import 'package:musicbox/services/sources/bilibili/api/client.dart';
-import 'package:musicbox/services/sources/bilibili/api/endpoints.dart';
+import 'package:unison/services/player/audio_proxy.dart';
+import 'package:unison/services/sources/bilibili/api/client.dart';
+import 'package:unison/services/sources/bilibili/api/endpoints.dart';
 
 /// 本地假 CDN：可配置每个请求的状态码；hang=true 时永不响应（测超时）。
 class _FakeCdn {

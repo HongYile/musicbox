@@ -1,4 +1,4 @@
-# musicbox
+# Unison 同度
 
 一款个人自用的跨平台音乐播放器（Flutter）。一套代码覆盖 macOS / Windows / iOS / Android，聚合多个音源，支持无损音质、换源试听、歌单与云端同步。
 

@@ -184,9 +184,9 @@ class LoginPage extends ConsumerWidget {
           const _UpdateSourceSelector(),
           TextButton.icon(
             onPressed: () =>
-                launchUrlString('https://github.com/HongYile/musicbox'),
+                launchUrlString('https://github.com/HongYile/unison'),
             icon: const Icon(Icons.code, size: 18),
-            label: const Text('项目地址 github.com/HongYile/musicbox',
+            label: const Text('项目地址 github.com/HongYile/unison',
                 style: TextStyle(fontSize: 12)),
           ),
         ],

@@ -19,7 +19,8 @@
 | 设备 | 系统 | 状态 |
 |---|---|---|
 | MacBook Air（Apple M3，Mac15,12） | macOS 15.5 | ✅ 已实测（开发/主用机） |
-| Windows（CI 构建 x64 便携包） | Windows 10/11 | ⚙️ CI 自动构建，实测进行中 |
+| Windows x64 便携包 | Windows 10 1809+ / 11 | ⚙️ CI 自动构建；**Win10 需安装 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) 才能使用 QQ 音乐网页登录**（Win11 自带） |
+| macOS 10.15+（含 macOS 26 Tahoe） | — | ✅ 向前兼容运行；本机构建 macOS 26 需 Xcode 26 |
 | iPhone / Android | — | 计划侧载实测 |
 
 ## 构建

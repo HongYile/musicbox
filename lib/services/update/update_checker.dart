@@ -39,7 +39,7 @@ class UpdateChecker {
             ));
 
   /// 当前应用版本（发版时与 pubspec.yaml、git tag 同步 bump）。
-  static const currentVersion = '0.2.0';
+  static const currentVersion = '0.2.1';
 
   static const _repos = {
     UpdateSource.github: 'HongYile/unison',

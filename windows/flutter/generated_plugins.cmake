@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   desktop_webview_window
+  flutter_inappwebview_windows
   flutter_secure_storage_windows
   media_kit_libs_windows_audio
   url_launcher_windows

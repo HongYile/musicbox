@@ -77,6 +77,21 @@ class BiliClient {
   /// 脚本/测试使用：内存 cookie。
   factory BiliClient.memory() => BiliClient._(CookieJar());
 
+  /// 写入整串 cookie（内嵌网页登录抓回后调用）。
+  Future<void> importCookieString(String cookieString) async {
+    final uri = Uri.parse('https://www.bilibili.com');
+    final list = <Cookie>[];
+    for (final pair in cookieString.split(';')) {
+      final idx = pair.indexOf('=');
+      if (idx <= 0) continue;
+      final name = pair.substring(0, idx).trim();
+      final value = pair.substring(idx + 1).trim();
+      if (name.isEmpty) continue;
+      list.add(Cookie(name, value)..domain = '.bilibili.com');
+    }
+    await cookieJar.saveFromResponse(uri, list);
+  }
+
   final CookieJar cookieJar;
   final Dio api;
   final Dio passport;

@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 import '../providers.dart';
+import '../services/auth/web_login_page.dart';
 import '../services/sources/bilibili/models.dart';
 import '../services/sources/qqmusic/api/qq_login.dart';
 import '../services/sync/webdav_client.dart';
@@ -120,23 +121,64 @@ class LoginPage extends ConsumerWidget {
               child: const Text('退出登录'),
             ),
           ] else ...[
-            if (ui.session != null && ui.status != QrcodeStatus.expired)
-              QrImageView(
-                data: ui.session!.url,
-                size: 220,
-                backgroundColor: Colors.white,
-              )
-            else
-              const Icon(Icons.qr_code_2, size: 120),
-            const SizedBox(height: 16),
-            Text(ui.message),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: ui.busy
-                  ? null
-                  : () => ref.read(loginUiProvider.notifier).start(),
-              child: Text(ui.session == null ? '生成登录二维码' : '刷新二维码'),
-            ),
+            if (Platform.isIOS || Platform.isAndroid) ...[
+              const Icon(Icons.ondemand_video, size: 96),
+              const SizedBox(height: 16),
+              const Text('本机打开 B站官方登录页完成登录，无需扫码',
+                  style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: ui.busy
+                    ? null
+                    : () async {
+                        final result =
+                            await WebLoginPage.loginBilibili(context);
+                        if (result != null && result.success) {
+                          await ref
+                              .read(biliClientProvider)
+                              .importCookieString(result.cookieString);
+                          if (context.mounted) {
+                            await ref
+                                .read(loginStateProvider.notifier)
+                                .onLoginSuccess();
+                          }
+                        }
+                      },
+                child: const Text('本机网页登录 B站'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () =>
+                    ref.read(loginUiProvider.notifier).start(),
+                child: const Text('或者用二维码登录（需另一台设备扫码）',
+                    style: TextStyle(fontSize: 12)),
+              ),
+              if (ui.session != null && ui.status != QrcodeStatus.expired)
+                QrImageView(
+                  data: ui.session!.url,
+                  size: 200,
+                  backgroundColor: Colors.white,
+                ),
+              Text(ui.message, style: const TextStyle(fontSize: 12)),
+            ] else ...[
+              if (ui.session != null && ui.status != QrcodeStatus.expired)
+                QrImageView(
+                  data: ui.session!.url,
+                  size: 220,
+                  backgroundColor: Colors.white,
+                )
+              else
+                const Icon(Icons.qr_code_2, size: 120),
+              const SizedBox(height: 16),
+              Text(ui.message),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: ui.busy
+                    ? null
+                    : () => ref.read(loginUiProvider.notifier).start(),
+                child: Text(ui.session == null ? '生成登录二维码' : '刷新二维码'),
+              ),
+            ],
             const SizedBox(height: 8),
             const Text('登录自己的 B站大会员账号以获取 Hi-Res 无损音质',
                 style: TextStyle(color: Colors.grey)),
@@ -338,12 +380,31 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
           ),
         ] else ...[
           if (Platform.isIOS || Platform.isAndroid) ...[
-            // desktop_webview_window 仅桌面端可用；移动端用 cookie 粘贴登录
-            const Text('移动端：在浏览器打开 y.qq.com 登录后，'
+            // 移动端：本机内嵌官方网页登录（cookie 粘贴为兜底）
+            FilledButton(
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      final result = await WebLoginPage.loginQqMusic(context);
+                      if (result != null && result.success) {
+                        await ref
+                            .read(qqClientProvider)
+                            .importCookieString(result.cookieString);
+                        ref.invalidate(qqLoginStateProvider);
+                        if (mounted && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('QQ 音乐登录成功')));
+                        }
+                      }
+                    },
+              child: const Text('本机网页登录 QQ 音乐'),
+            ),
+            const SizedBox(height: 10),
+            const Text('或用 cookie 粘贴登录：浏览器打开 y.qq.com 登录后，'
                 '从开发者工具复制整串 Cookie 粘贴到下方',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: Colors.grey, fontSize: 11),
                 textAlign: TextAlign.center),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             SizedBox(
               width: 320,
               child: TextField(
@@ -354,7 +415,7 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
               ),
             ),
             const SizedBox(height: 8),
-            FilledButton(
+            FilledButton.tonal(
               onPressed: _busy ? null : _loginByCookie,
               child: const Text('用 Cookie 登录'),
             ),

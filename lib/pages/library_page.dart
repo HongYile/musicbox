@@ -9,6 +9,7 @@ import '../services/library/library_db.dart';
 import '../services/player/player_service.dart';
 import '../services/sources/bilibili/api/client.dart';
 import '../services/sources/bilibili/stream_select.dart';
+import '../services/sources/qqmusic/api/qq_endpoints.dart';
 import '../widgets/add_to_playlist_dialog.dart';
 import '../widgets/eq_bars.dart';
 
@@ -68,6 +69,22 @@ class _PlaylistsTab extends ConsumerWidget {
     final playlists = ref.watch(playlistsProvider);
     return Scaffold(
       backgroundColor: Colors.transparent,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(44),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () => showQqImportSheet(context, ref),
+                icon: const Icon(Icons.download_for_offline, size: 18),
+                label: const Text('导入 QQ 歌单'),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: playlists.isEmpty
           ? const Center(child: Text('还没有歌单，点右下角新建'))
           : ListView.builder(
@@ -414,6 +431,127 @@ class _DownloadsTab extends ConsumerWidget {
               : null,
         );
       },
+    );
+  }
+}
+
+/// QQ 音乐歌单批量导入：列出用户自建歌单 → 选一个 → 全量导入为本地歌单。
+Future<void> showQqImportSheet(BuildContext context, WidgetRef ref) async {
+  final uin = await ref.read(qqAuthServiceProvider).uin();
+  if (uin == '0' || uin.isEmpty) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请先在「我的」页登录 QQ 音乐')));
+    }
+    return;
+  }
+  if (!context.mounted) return;
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheetContext) => _QqImportSheet(uin: uin),
+  );
+}
+
+class _QqImportSheet extends ConsumerStatefulWidget {
+  const _QqImportSheet({required this.uin});
+
+  final String uin;
+
+  @override
+  ConsumerState<_QqImportSheet> createState() => _QqImportSheetState();
+}
+
+class _QqImportSheetState extends ConsumerState<_QqImportSheet> {
+  late final Future<List<QqPlaylistSummary>> _future = _load();
+  String? _importing;
+
+  Future<List<QqPlaylistSummary>> _load() =>
+      ref.read(qqApiProvider).userPlaylists(widget.uin);
+
+  Future<void> _import(QqPlaylistSummary p) async {
+    setState(() => _importing = p.name);
+    try {
+      final tracks = await ref.read(qqApiProvider).playlistTracks(p.tid);
+      if (tracks.isEmpty) throw StateError('歌单为空或不可访问');
+      final playlistId =
+          ref.read(playlistsProvider.notifier).create('QQ · ${p.name}');
+      var added = 0;
+      final notifier = ref.read(playlistsProvider.notifier);
+      for (final s in tracks) {
+        final ok = notifier.addTrack(
+          playlistId: playlistId,
+          sourceId: 'qqmusic',
+          trackId: s.songMid,
+          title: s.name,
+          artist: s.singer,
+          cover: s.coverUrl,
+          durationSec: s.intervalSec,
+          cid: 0,
+        );
+        if (ok) added++;
+      }
+      ref.read(playlistsProvider.notifier).refresh();
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('已导入「${p.name}」：$added/${tracks.length} 首')));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _importing = null);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('导入失败: $e')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 420,
+      child: FutureBuilder<List<QqPlaylistSummary>>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(child: Text('加载失败: ${snap.error}'));
+          }
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final list = snap.data!;
+          if (list.isEmpty) return const Center(child: Text('没有自建歌单'));
+          return ListView.builder(
+            itemCount: list.length,
+            itemBuilder: (context, i) {
+              final p = list[i];
+              final busy = _importing == p.name;
+              return ListTile(
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: p.coverUrl.isNotEmpty
+                      ? Image.network(p.coverUrl,
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const Icon(Icons.music_note))
+                      : const Icon(Icons.queue_music),
+                ),
+                title: Text(p.name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('${p.songCount} 首'),
+                trailing: busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.download, size: 20),
+                onTap: busy || _importing != null ? null : () => _import(p),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

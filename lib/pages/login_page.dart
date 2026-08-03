@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 import '../providers.dart';
 import '../services/auth/web_login_page.dart';
+import '../widgets/glass_card.dart';
 import '../services/sources/bilibili/models.dart';
 import '../services/sources/qqmusic/api/qq_login.dart';
 import '../services/sync/webdav_client.dart';
@@ -101,136 +102,98 @@ class LoginPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ui = ref.watch(loginUiProvider);
-    final login = ref.watch(loginStateProvider);
-
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-          if (login.isLogin) ...[
-            const Icon(Icons.account_circle, size: 72),
-            const SizedBox(height: 12),
-            Text('已登录：${login.uname} (mid=${login.mid})'),
-            const SizedBox(height: 12),
-            FilledButton.tonal(
-              onPressed: () =>
-                  ref.read(loginStateProvider.notifier).logout(),
-              child: const Text('退出登录'),
-            ),
-          ] else ...[
-            if (Platform.isIOS || Platform.isAndroid) ...[
-              const Icon(Icons.ondemand_video, size: 96),
-              const SizedBox(height: 16),
-              const Text('本机打开 B站官方登录页完成登录，无需扫码',
-                  style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: ui.busy
-                    ? null
-                    : () async {
-                        final result =
-                            await WebLoginPage.loginBilibili(context);
-                        if (result != null && result.success) {
-                          await ref
-                              .read(biliClientProvider)
-                              .importCookieString(result.cookieString);
-                          if (context.mounted) {
-                            await ref
-                                .read(loginStateProvider.notifier)
-                                .onLoginSuccess();
-                          }
-                        }
-                      },
-                child: const Text('本机网页登录 B站'),
+          // ---- 分组设置布局 ----
+          _SettingsSection(
+            title: '账号',
+            children: [
+              const _BiliLoginCard(),
+              const Divider(height: 20),
+              _QqLoginCard(),
+            ],
+          ),
+          _SettingsSection(
+            title: '同步',
+            children: [
+              _NutstoreCard(),
+            ],
+          ),
+          _SettingsSection(
+            title: '常规',
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('外观', style: Theme.of(context).textTheme.bodyMedium),
+                  SegmentedButton<ThemeMode>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(
+                          value: ThemeMode.system,
+                          label: Text('跟随系统')),
+                      ButtonSegment(
+                          value: ThemeMode.light, label: Text('亮色')),
+                      ButtonSegment(value: ThemeMode.dark, label: Text('暗色')),
+                    ],
+                    selected: {ref.watch(themeModeProvider)},
+                    onSelectionChanged: (s) =>
+                        ref.read(themeModeProvider.notifier).set(s.first),
+                  ),
+                ],
+              ),
+              const Divider(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('更新源', style: Theme.of(context).textTheme.bodyMedium),
+                  const _UpdateSourceSelector(),
+                ],
+              ),
+              const Divider(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('版本更新',
+                      style: Theme.of(context).textTheme.bodyMedium),
+                  TextButton.icon(
+                    onPressed: () =>
+                        checkAndPromptUpdate(context, manual: true),
+                    icon: const Icon(Icons.system_update_alt, size: 18),
+                    label: const Text('检查更新'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          _SettingsSection(
+            title: '关于',
+            children: [
+              const SizedBox(height: 4),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset('assets/icon.png',
+                    width: 56, height: 56,
+                    errorBuilder: (_, _, _) =>
+                        const Icon(Icons.music_note, size: 56)),
               ),
               const SizedBox(height: 8),
-              TextButton(
+              Text('Unison 同度',
+                  style: Theme.of(context).textTheme.titleMedium),
+              Text('当前版本 ${UpdateChecker.currentVersion}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              TextButton.icon(
                 onPressed: () =>
-                    ref.read(loginUiProvider.notifier).start(),
-                child: const Text('或者用二维码登录（需另一台设备扫码）',
+                    launchUrlString('https://github.com/HongYile/unison'),
+                icon: const Icon(Icons.code, size: 18),
+                label: const Text('项目地址 github.com/HongYile/unison',
                     style: TextStyle(fontSize: 12)),
               ),
-              if (ui.session != null && ui.status != QrcodeStatus.expired)
-                QrImageView(
-                  data: ui.session!.url,
-                  size: 200,
-                  backgroundColor: Colors.white,
-                ),
-              Text(ui.message, style: const TextStyle(fontSize: 12)),
-            ] else ...[
-              if (ui.session != null && ui.status != QrcodeStatus.expired)
-                QrImageView(
-                  data: ui.session!.url,
-                  size: 220,
-                  backgroundColor: Colors.white,
-                )
-              else
-                const Icon(Icons.qr_code_2, size: 120),
-              const SizedBox(height: 16),
-              Text(ui.message),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: ui.busy
-                    ? null
-                    : () => ref.read(loginUiProvider.notifier).start(),
-                child: Text(ui.session == null ? '生成登录二维码' : '刷新二维码'),
-              ),
             ],
-            const SizedBox(height: 8),
-            const Text('登录自己的 B站大会员账号以获取 Hi-Res 无损音质',
-                style: TextStyle(color: Colors.grey)),
-          ],
-          const SizedBox(height: 24),
-          const Divider(indent: 60, endIndent: 60),
-          const SizedBox(height: 12),
-          const _QqLoginCard(),
-          const SizedBox(height: 20),
-          const Divider(indent: 60, endIndent: 60),
-          const SizedBox(height: 12),
-          const _NutstoreCard(),
-          const SizedBox(height: 20),
-          const Divider(indent: 60, endIndent: 60),
-          const SizedBox(height: 12),
-          Text('外观', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          SegmentedButton<ThemeMode>(
-            segments: const [
-              ButtonSegment(
-                  value: ThemeMode.system,
-                  label: Text('跟随系统'),
-                  icon: Icon(Icons.brightness_auto)),
-              ButtonSegment(
-                  value: ThemeMode.light,
-                  label: Text('亮色'),
-                  icon: Icon(Icons.light_mode)),
-              ButtonSegment(
-                  value: ThemeMode.dark,
-                  label: Text('暗色'),
-                  icon: Icon(Icons.dark_mode)),
-            ],
-            selected: {ref.watch(themeModeProvider)},
-            onSelectionChanged: (s) =>
-                ref.read(themeModeProvider.notifier).set(s.first),
-          ),
-          const SizedBox(height: 20),
-          Text('当前版本 ${UpdateChecker.currentVersion}',
-              style: const TextStyle(color: Colors.grey, fontSize: 12)),
-          TextButton.icon(
-            onPressed: () => checkAndPromptUpdate(context, manual: true),
-            icon: const Icon(Icons.system_update_alt, size: 18),
-            label: const Text('检查更新'),
-          ),
-          const SizedBox(height: 12),
-          const _UpdateSourceSelector(),
-          TextButton.icon(
-            onPressed: () =>
-                launchUrlString('https://github.com/HongYile/unison'),
-            icon: const Icon(Icons.code, size: 18),
-            label: const Text('项目地址 github.com/HongYile/unison',
-                style: TextStyle(fontSize: 12)),
           ),
         ],
         ),
@@ -719,6 +682,134 @@ class _UpdateSourceSelectorState extends State<_UpdateSourceSelector> {
           selected: {_source},
           onSelectionChanged: (s) => _set(s.first),
         ),
+      ],
+    );
+  }
+}
+
+/// 设置分组：小标题 + 玻璃卡片容器。
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 6, bottom: 6),
+            child: Text(
+              title.toUpperCase(),
+              style: TextStyle(
+                fontSize: 12,
+                letterSpacing: 1.6,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+          GlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(children: children),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// B站登录卡片（账号组内）。
+class _BiliLoginCard extends ConsumerWidget {
+  const _BiliLoginCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ui = ref.watch(loginUiProvider);
+    final login = ref.watch(loginStateProvider);
+
+    if (login.isLogin) {
+      return Column(
+        children: [
+          const Icon(Icons.account_circle, size: 56),
+          const SizedBox(height: 8),
+          Text('哔哩哔哩 已登录：${login.uname} (mid=${login.mid})'),
+          const SizedBox(height: 8),
+          FilledButton.tonal(
+            onPressed: () => ref.read(loginStateProvider.notifier).logout(),
+            child: const Text('退出登录'),
+          ),
+        ],
+      );
+    }
+
+    if (Platform.isIOS || Platform.isAndroid) {
+      return Column(
+        children: [
+          Text('哔哩哔哩', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          FilledButton(
+            onPressed: ui.busy
+                ? null
+                : () async {
+                    final result = await WebLoginPage.loginBilibili(context);
+                    if (result != null && result.success) {
+                      await ref
+                          .read(biliClientProvider)
+                          .importCookieString(result.cookieString);
+                      if (context.mounted) {
+                        await ref
+                            .read(loginStateProvider.notifier)
+                            .onLoginSuccess();
+                      }
+                    }
+                  },
+            child: const Text('本机网页登录'),
+          ),
+          TextButton(
+            onPressed: () => ref.read(loginUiProvider.notifier).start(),
+            child: const Text('或用二维码（需另一台设备）',
+                style: TextStyle(fontSize: 12)),
+          ),
+          if (ui.session != null && ui.status != QrcodeStatus.expired)
+            QrImageView(
+              data: ui.session!.url,
+              size: 180,
+              backgroundColor: Colors.white,
+            ),
+          Text(ui.message, style: const TextStyle(fontSize: 12)),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        Text('哔哩哔哩', style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        if (ui.session != null && ui.status != QrcodeStatus.expired)
+          QrImageView(
+            data: ui.session!.url,
+            size: 200,
+            backgroundColor: Colors.white,
+          )
+        else
+          const Icon(Icons.qr_code_2, size: 100),
+        const SizedBox(height: 10),
+        Text(ui.message, style: const TextStyle(fontSize: 12)),
+        const SizedBox(height: 8),
+        FilledButton(
+          onPressed: ui.busy
+              ? null
+              : () => ref.read(loginUiProvider.notifier).start(),
+          child: Text(ui.session == null ? '扫码登录' : '刷新二维码'),
+        ),
+        const SizedBox(height: 4),
+        const Text('登录自己的 B站大会员账号以获取 Hi-Res 无损音质',
+            style: TextStyle(color: Colors.grey, fontSize: 11)),
       ],
     );
   }

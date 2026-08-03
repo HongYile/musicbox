@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:dio/dio.dart';
+
 import 'qq_client.dart';
 import '../models.dart';
 
@@ -15,6 +17,20 @@ const Map<String, (String ext, int qualityId)> kQqFileTypes = {
 
 /// 降级链：无损 → 320K → 128K。
 const List<String> kQqQualityChain = ['F000', 'M800', 'M500'];
+
+class QqPlaylistSummary {
+  const QqPlaylistSummary({
+    required this.tid,
+    required this.name,
+    required this.songCount,
+    required this.coverUrl,
+  });
+
+  final int tid;
+  final String name;
+  final int songCount;
+  final String coverUrl;
+}
 
 class QqApi {
   QqApi(this.client);
@@ -31,6 +47,63 @@ class QqApi {
     }
     if (data is Map<String, dynamic>) return data;
     throw StateError('$tag 返回异常: $data');
+  }
+
+  /// 用户自建歌单列表（含"我喜欢" dirid=201）。需登录。
+  Future<List<QqPlaylistSummary>> userPlaylists(String uin) async {
+    final resp = await client.search.get(
+      '/rsc/fcgi-bin/fcg_user_created_diss',
+      queryParameters: {
+        'hostUin': 0,
+        'hostuin': uin,
+        'sin': 0,
+        'size': 200,
+        'g_tk': 5381,
+        'loginUin': 0,
+        'format': 'json',
+        'inCharset': 'utf8',
+        'outCharset': 'utf-8',
+        'notice': 0,
+        'platform': 'yqq.json',
+        'needNewCode': 0,
+      },
+      options: Options(headers: {'Referer': 'https://y.qq.com/portal/profile.html'}),
+    );
+    final body = _expectMap(resp.data, 'userPlaylists');
+    if ((body['code'] as num?) == 4000) {
+      throw StateError('该账号未公开歌单');
+    }
+    final data = body['data'];
+    if (data is! Map<String, dynamic>) {
+      throw StateError('获取歌单失败（需要登录）');
+    }
+    final list = (data['disslist'] as List? ?? const []);
+    return [
+      for (final d in list.whereType<Map>())
+        QqPlaylistSummary(
+          tid: (d['tid'] as num).toInt(),
+          name: (d['diss_name'] ?? '') as String,
+          songCount: (d['song_cnt'] as num?)?.toInt() ?? 0,
+          coverUrl: (d['diss_cover'] ?? '') as String,
+        ),
+    ];
+  }
+
+  /// 歌单详情（全量曲目）。公开歌单无需登录。
+  Future<List<QqSong>> playlistTracks(int tid) async {
+    final resp = await client.search.get(
+      '/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg',
+      queryParameters: {'type': 1, 'utf8': 1, 'disstid': tid, 'loginUin': 0},
+      options: Options(headers: {'Referer': 'https://y.qq.com/n/yqq/playlist'}),
+    );
+    final body = _expectMap(resp.data, 'playlistTracks');
+    final cdlist = (body['cdlist'] as List? ?? const []);
+    if (cdlist.isEmpty || cdlist.first is! Map) return const [];
+    final songlist = (cdlist.first['songlist'] as List? ?? const []);
+    return [
+      for (final item in songlist.whereType<Map>())
+        QqSong.fromSearchJson(item.cast<String, dynamic>()),
+    ];
   }
 
   /// 单曲搜索（client_search_cp，t=0）。

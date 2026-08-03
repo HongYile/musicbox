@@ -158,3 +158,11 @@ flutter build macos --debug         # 需要完整 Xcode（CLT 不够）
 - 每次发版/批量提交前跑一遍敏感串扫描：
   `git ls-files | xargs grep -l -E 'ghp_|SESSDATA=|qqmusic_key=|MUSIC_U=|appPassword'`
   输出必须为空。真实凭证值（即使测试用）也不写进单测。
+
+## 发版纪律（2026-08-03 确立）
+
+- **每次出包必须 bump 版本号**（pubspec、UpdateChecker.currentVersion、git tag、
+  appsrc 四处同步），**禁止在旧 release 上替换附件**——否则各端更新检测失效。
+- Release 只保留最近 2 个版本，旧的定期删除（GitHub `gh release delete`、
+  Gitee API DELETE），tags 可保留。
+- appsrc 的 sourceUpdateTime/appUpdateTime 必须随版本更新（GBox 靠它刷新）。

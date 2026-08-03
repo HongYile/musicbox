@@ -66,6 +66,7 @@ class QueueItem {
     required this.title,
     required this.artist,
     required this.coverUrl,
+    this.sourceId = 'bilibili',
   });
 
   final String bvid;
@@ -73,6 +74,9 @@ class QueueItem {
   final String title;
   final String artist;
   final String coverUrl;
+
+  /// 音源 id：bilibili / qqmusic / netease。
+  final String sourceId;
 }
 
 /// media_kit 播放器封装。
@@ -249,6 +253,17 @@ class PlayerService {
   }
 
   Future<CurrentTrack> _playItem(QueueItem item) async {
+    final track = switch (item.sourceId) {
+      'qqmusic' => await _resolveQq(item),
+      'netease' => await _resolveNcm(item),
+      _ => await _resolveBili(item),
+    };
+    _current = track;
+    _currentTrackController.add(track);
+    return track;
+  }
+
+  Future<CurrentTrack> _resolveBili(QueueItem item) async {
     final choice = await _proxy.resolveTrack(item.bvid, item.cid);
     final track = CurrentTrack(
       bvid: item.bvid,
@@ -267,13 +282,54 @@ class PlayerService {
         },
       ),
     );
-    _current = track;
-    _currentTrackController.add(track);
     return track;
   }
 
-  /// 播放网易云单曲：xeapi 取流（降级链），直链 + UA 头交给 media_kit，
-  /// 网易 CDN 无 Referer 校验、URL 长时效，无需走本地代理。
+  Future<CurrentTrack> _resolveQq(QueueItem item) async {
+    final api = qqApi;
+    if (api == null) throw StateError('QQ音乐音源未初始化');
+    final song = QqSong(
+      songMid: item.bvid,
+      mediaMid: item.bvid,
+      name: item.title,
+      singer: item.artist,
+      album: '',
+      intervalSec: 0,
+      coverUrl: item.coverUrl,
+    );
+    final choice = await selectQqSongUrl(song, api.songUrl);
+    final track = CurrentTrack(
+      bvid: 'qq:${item.bvid}',
+      cid: 0,
+      title: item.title,
+      artist: item.artist,
+      coverUrl: item.coverUrl,
+      quality: choice,
+    );
+    await player.open(Media(choice.url, httpHeaders: choice.httpHeaders));
+    return track;
+  }
+
+  Future<CurrentTrack> _resolveNcm(QueueItem item) async {
+    final api = ncmApi;
+    if (api == null) throw StateError('网易云音源未初始化');
+    final id = int.tryParse(item.bvid);
+    if (id == null) throw ArgumentError('非法网易云曲目 id: ${item.bvid}');
+    final info = await selectNcmSongUrl((level) => api.songUrlV1(id, level));
+    final choice = ncmStreamChoice(info);
+    final track = CurrentTrack(
+      bvid: 'ncm:${item.bvid}',
+      cid: 0,
+      title: item.title,
+      artist: item.artist,
+      coverUrl: item.coverUrl,
+      quality: choice,
+    );
+    await player.open(Media(choice.url, httpHeaders: choice.httpHeaders));
+    return track;
+  }
+
+  /// 播放网易云单曲：xeapi 取流（降级链），直链 + UA 头交给 media_kit。
   Future<CurrentTrack> playNeteaseTrack({
     required String songId,
     required String title,
@@ -282,21 +338,14 @@ class PlayerService {
   }) async {
     _queue = const [];
     _queueIndex = -1;
-    final api = ncmApi;
-    if (api == null) throw StateError('网易云音源未初始化');
-    final id = int.tryParse(songId);
-    if (id == null) throw ArgumentError('非法网易云曲目 id: $songId');
-    final info = await selectNcmSongUrl((level) => api.songUrlV1(id, level));
-    final choice = ncmStreamChoice(info);
-    final track = CurrentTrack(
-      bvid: 'ncm:$songId',
+    final track = await _resolveNcm(QueueItem(
+      bvid: songId,
       cid: 0,
       title: title,
       artist: artist,
       coverUrl: coverUrl,
-      quality: choice,
-    );
-    await player.open(Media(choice.url, httpHeaders: choice.httpHeaders));
+      sourceId: 'netease',
+    ));
     _current = track;
     _currentTrackController.add(track);
     return track;
@@ -306,18 +355,14 @@ class PlayerService {
   Future<CurrentTrack> playQqTrack(QqSong song) async {
     _queue = const [];
     _queueIndex = -1;
-    final api = qqApi;
-    if (api == null) throw StateError('QQ音乐音源未初始化');
-    final choice = await selectQqSongUrl(song, api.songUrl);
-    final track = CurrentTrack(
-      bvid: 'qq:${song.songMid}',
+    final track = await _resolveQq(QueueItem(
+      bvid: song.songMid,
       cid: 0,
       title: song.name,
       artist: song.singer,
       coverUrl: song.coverUrl,
-      quality: choice,
-    );
-    await player.open(Media(choice.url, httpHeaders: choice.httpHeaders));
+      sourceId: 'qqmusic',
+    ));
     _current = track;
     _currentTrackController.add(track);
     return track;

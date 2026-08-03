@@ -126,24 +126,36 @@ class PlaylistDetailView extends ConsumerStatefulWidget {
 class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
   bool _starting = false;
 
-  /// 组装播放队列：cid=0（收藏夹导入）的条目先经 pagelist 解析。
+  /// 组装播放队列：分源处理——B站 cid=0 的条目先经 pagelist 解析；
+  /// QQ/网易云直接用各自 id，不查 pagelist（否则 B站 API 报 -400）。
   Future<List<QueueItem>> _buildQueue(List<PlaylistTrack> tracks) async {
     final api = ref.read(biliApiProvider);
     final items = <QueueItem>[];
     for (final t in tracks) {
-      var cid = t.cid;
-      if (cid == 0) {
-        final pages = await api.pagelist(t.trackId);
-        if (pages.isEmpty) continue; // 无分 P 的跳过
-        cid = pages.first.cid;
+      if (t.sourceId == 'bilibili') {
+        var cid = t.cid;
+        if (cid == 0) {
+          final pages = await api.pagelist(t.trackId);
+          if (pages.isEmpty) continue; // 无分 P 的跳过
+          cid = pages.first.cid;
+        }
+        items.add(QueueItem(
+          bvid: t.trackId,
+          cid: cid,
+          title: t.title,
+          artist: t.artist,
+          coverUrl: t.cover,
+        ));
+      } else {
+        items.add(QueueItem(
+          bvid: t.trackId,
+          cid: 0,
+          title: t.title,
+          artist: t.artist,
+          coverUrl: t.cover,
+          sourceId: t.sourceId, // qqmusic / netease 原样进队列
+        ));
       }
-      items.add(QueueItem(
-        bvid: t.trackId,
-        cid: cid,
-        title: t.title,
-        artist: t.artist,
-        coverUrl: t.cover,
-      ));
     }
     return items;
   }

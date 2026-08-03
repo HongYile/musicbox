@@ -48,12 +48,13 @@ class WebLoginPage extends StatefulWidget {
         ),
       );
 
-  /// 便捷入口：QQ 音乐。
+  /// 便捷入口：QQ 音乐（直连官方 ptlogin 登录页，桌面 UA 确保登录入口可见）。
   static Future<WebLoginResult?> loginQqMusic(BuildContext context) =>
       Navigator.of(context, rootNavigator: true).push<WebLoginResult>(
         MaterialPageRoute(
           builder: (_) => const WebLoginPage(
-            loginUrl: 'https://y.qq.com',
+            loginUrl:
+                'https://xui.ptlogin2.qq.com/cgi-bin/xlogin?appid=716027609&daid=383&style=40&hide_title_bar=1&target=self&s_url=https%3A%2F%2Fy.qq.com%2F',
             cookieDomain: 'https://y.qq.com',
             successKey: 'qqmusic_key',
             title: '登录 QQ 音乐',
@@ -127,6 +128,11 @@ class _WebLoginPageState extends State<WebLoginPage> {
       ),
       body: InAppWebView(
         initialUrlRequest: URLRequest(url: WebUri(widget.loginUrl)),
+        initialSettings: InAppWebViewSettings(
+          // 桌面 UA：移动版页面常隐藏"登录"入口（尤其 y.qq.com / B站）
+          userAgent:
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        ),
       ),
     );
   }

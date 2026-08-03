@@ -243,12 +243,6 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
     }
   }
 
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
-  }
-
   Future<void> _startQr() async {
     await _sub?.cancel();
     setState(() {

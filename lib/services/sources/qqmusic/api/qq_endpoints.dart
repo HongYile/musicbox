@@ -38,10 +38,18 @@ class QqApi {
   final QqClient client;
 
   Map<String, dynamic> _expectMap(Object? data, String tag) {
-    // QQ 接口有时返回 text/plain，dio 不会自动解码，需要手动 jsonDecode。
+    // QQ 接口有时返回 text/plain 或 JSONP 包裹（jsonCallback({...})），
+    // dio 不会自动解码，需要手动处理。
     if (data is String) {
+      var text = data.trim();
+      // JSONP 去壳：剥掉外层 callback( ... )
+      if (!text.startsWith('{') && text.contains('(') && text.endsWith(')')) {
+        final start = text.indexOf('(');
+        final end = text.lastIndexOf(')');
+        if (end > start) text = text.substring(start + 1, end);
+      }
       try {
-        final decoded = jsonDecode(data);
+        final decoded = jsonDecode(text);
         if (decoded is Map<String, dynamic>) return decoded;
       } catch (_) {}
     }

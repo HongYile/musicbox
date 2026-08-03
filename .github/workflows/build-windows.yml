@@ -34,9 +34,15 @@ jobs:
       - run: flutter build windows --release
 
       # 打包成便携 zip（含 exe 与全部 dll/资源）
+      # 顺手并入 VC++ CRT 运行库，全新系统也免装环境、解压即用
       - name: Zip portable
         shell: pwsh
         run: |
+          $crt = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC\*\x64\Microsoft.VC143.CRT" |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($crt) {
+            Copy-Item "$($crt.FullName)\*.dll" build\windows\x64\runner\Release\
+          }
           Compress-Archive -Path build\windows\x64\runner\Release\* `
             -DestinationPath unison-windows-x64.zip
 

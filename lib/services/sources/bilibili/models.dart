@@ -127,6 +127,49 @@ class BiliFavPage {
   final bool hasMore;
 }
 
+/// 视频评论区单条（x/v2/reply）。
+class BiliComment {
+  const BiliComment({
+    required this.author,
+    required this.avatar,
+    required this.message,
+    required this.like,
+    required this.timeSec,
+    required this.replyCount,
+  });
+
+  final String author;
+  final String avatar;
+  final String message;
+  final int like;
+  final int timeSec;
+
+  /// 楼中楼回复数。
+  final int replyCount;
+
+  factory BiliComment.fromJson(Map<String, dynamic> json) {
+    final member = (json['member'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final content =
+        (json['content'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return BiliComment(
+      author: (member['uname'] ?? '') as String,
+      avatar: (member['avatar'] ?? '') as String,
+      message: (content['message'] ?? '') as String,
+      like: (json['like'] as num?)?.toInt() ?? 0,
+      timeSec: (json['ctime'] as num?)?.toInt() ?? 0,
+      replyCount: (json['rcount'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// 评论分页结果。
+class BiliCommentPage {
+  const BiliCommentPage({required this.items, required this.isEnd});
+
+  final List<BiliComment> items;
+  final bool isEnd;
+}
+
 class QrcodeSession {
   const QrcodeSession({required this.url, required this.qrcodeKey});
 

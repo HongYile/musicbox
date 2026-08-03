@@ -188,10 +188,15 @@ class PlayerService {
     }
   }
 
-  /// 队列下一首（手动切歌，始终顺序步进）。到队尾则停止。
+  /// 队列下一首（手动切歌）。随机模式下随机跳；其他模式顺序步进，到队尾停止。
   Future<void> next() async {
-    if (!hasNext) return;
-    _queueIndex++;
+    if (_queue.isEmpty) return;
+    final idx = _mode == PlayMode.shuffle
+        ? nextQueueIndex(
+            current: _queueIndex, length: _queue.length, mode: _mode)
+        : (_queueIndex + 1 < _queue.length ? _queueIndex + 1 : null);
+    if (idx == null) return;
+    _queueIndex = idx;
     try {
       await _playItem(_queue[_queueIndex]);
     } catch (_) {

@@ -141,6 +141,66 @@ class QqApi {
   String _guid() =>
       (Random().nextInt(900000000) + 100000000).toString();
 
+  /// songmid → 数值 songid（评论区 topid 用；fcg_play_single_song 无需登录）。
+  Future<int> songIdByMid(String songMid) async {
+    final resp = await client.search.get(
+      '/v8/fcg-bin/fcg_play_single_song.fcg',
+      queryParameters: {
+        'songmid': songMid,
+        'tpl': 'yqq_song_detail',
+        'format': 'json',
+      },
+      options: Options(headers: {'Referer': 'https://y.qq.com'}),
+    );
+    final body = _expectMap(resp.data, 'playSingleSong');
+    final data = (body['data'] as List? ?? const []);
+    if (data.isEmpty || data.first is! Map) {
+      throw StateError('songmid 无对应曲目: $songMid');
+    }
+    return ((data.first as Map)['id'] as num).toInt();
+  }
+
+  /// 歌曲评论分页（fcg_global_comment_h5，cmd=8 最新+热评混合，无需登录）。
+  Future<QqCommentPage> comments(int songId,
+      {int page = 0, int pageSize = 20}) async {
+    final resp = await client.search.get(
+      '/base/fcgi-bin/fcg_global_comment_h5.fcg',
+      queryParameters: {
+        'g_tk': 5381,
+        'g_tk_new_20200303': 5381,
+        'loginUin': 0,
+        'hostUin': 0,
+        'format': 'json',
+        'inCharset': 'utf8',
+        'outCharset': 'utf-8',
+        'notice': 0,
+        'platform': 'yqq.json',
+        'needNewCode': 0,
+        'cid': 205360772,
+        'reqtype': 2,
+        'biztype': 1,
+        'topid': songId,
+        'cmd': 8,
+        'needmusiccrit': 0,
+        'pagenum': page,
+        'pagesize': pageSize,
+        'domain': 'qq.com',
+      },
+      options: Options(headers: {'Referer': 'https://y.qq.com'}),
+    );
+    final body = _expectMap(resp.data, 'comments');
+    final comment = (body['comment'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final list = (comment['commentlist'] as List? ?? const []);
+    final total = (comment['commenttotal'] as num?)?.toInt() ?? 0;
+    return QqCommentPage(
+      items: [
+        for (final c in list.whereType<Map>())
+          QqComment.fromJson(c.cast<String, dynamic>()),
+      ],
+      isEnd: list.isEmpty || (page + 1) * pageSize >= total,
+    );
+  }
+
   /// 取流：vkey.GetVkeyServer。
   ///
   /// 返回完整播放 URL；`purl` 为空（无权限/VIP 限定）返回 null。

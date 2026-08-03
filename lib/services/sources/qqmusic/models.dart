@@ -45,3 +45,36 @@ class QqSong {
     );
   }
 }
+
+/// QQ 音乐评论单条。
+class QqComment {
+  const QqComment({
+    required this.author,
+    required this.avatar,
+    required this.message,
+    required this.like,
+    required this.timeSec,
+  });
+
+  final String author;
+  final String avatar;
+  final String message;
+  final int like;
+  final int timeSec;
+
+  factory QqComment.fromJson(Map<String, dynamic> json) => QqComment(
+        author: (json['nick'] ?? '') as String,
+        avatar: (json['avatarurl'] ?? '') as String,
+        message: (json['rootcommentcontent'] ?? '') as String,
+        like: (json['praisenum'] as num?)?.toInt() ?? 0,
+        timeSec: (json['time'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// 评论分页结果。
+class QqCommentPage {
+  const QqCommentPage({required this.items, required this.isEnd});
+
+  final List<QqComment> items;
+  final bool isEnd;
+}

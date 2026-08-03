@@ -187,4 +187,38 @@ class BiliApi {
         .loadForRequest(Uri.parse('https://api.bilibili.com'));
     return cookies.any((c) => c.name == 'SESSDATA' && c.value.isNotEmpty);
   }
+
+  /// 稿件 aid（评论区 oid 用）。
+  Future<int> aidOf(String bvid) async {
+    final resp = await client.api.get<Map<String, dynamic>>(
+      '/x/web-interface/view',
+      queryParameters: {'bvid': bvid},
+    );
+    final data = _expectMap(resp.data!, 'view');
+    return (data['aid'] as num).toInt();
+  }
+
+  /// 视频评论分页（type=1 视频区；sort=1 热评 / 2 最新）。
+  Future<BiliCommentPage> replies(int aid,
+      {int pn = 1, int ps = 20, int sort = 1}) async {
+    final resp = await client.api.get<Map<String, dynamic>>(
+      '/x/v2/reply',
+      queryParameters: {
+        'type': 1,
+        'oid': aid,
+        'sort': sort,
+        'pn': pn,
+        'ps': ps,
+      },
+    );
+    final data = _expectMap(resp.data!, 'reply');
+    final list = (data['replies'] as List?) ?? const [];
+    final cursor = (data['cursor'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return BiliCommentPage(
+      items: list
+          .map((e) => BiliComment.fromJson((e as Map).cast<String, dynamic>()))
+          .toList(),
+      isEnd: cursor['is_end'] == true || list.isEmpty,
+    );
+  }
 }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -11,13 +12,15 @@ import '../services/lyrics/lrc_parser.dart';
 import '../services/player/player_service.dart';
 import '../services/sources/bilibili/api/client.dart';
 import '../widgets/add_to_playlist_dialog.dart';
+import '../widgets/comments_panel.dart';
 import '../widgets/quality_badge.dart';
 import '../widgets/source_audition_sheet.dart';
 
 /// 全屏播放页。
 ///
-/// 背景 = 封面放大高斯模糊的环境层（切歌交叉渐变）——主流音乐软件的
-/// "灵动"招牌效果；内容弹性布局，任何窗口高度都不出现滚动条。
+/// 布局参照主流音乐软件：左侧封面（保留原始宽高比）+ 曲目信息，
+/// 右侧歌词/评论二选一面板（上下渐变遮罩，滚动条隐藏）；
+/// 窄窗口退化为上下结构。背景 = 封面放大高斯模糊的环境层。
 class PlayerPage extends ConsumerStatefulWidget {
   const PlayerPage({super.key});
 
@@ -27,7 +30,8 @@ class PlayerPage extends ConsumerStatefulWidget {
 
 class _PlayerPageState extends ConsumerState<PlayerPage>
     with SingleTickerProviderStateMixin {
-  bool _showLyrics = false;
+  /// 右侧面板：0 歌词 / 1 评论。
+  int _panelTab = 0;
   List<LrcLine> _lyricLines = const [];
   String _lyricKey = '';
   final _lyricScroll = ScrollController();
@@ -114,10 +118,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
 
     _loadLyrics(track);
 
-    final maxMs = duration.inMilliseconds.toDouble();
-    final curMs =
-        position.inMilliseconds.toDouble().clamp(0, maxMs > 0 ? maxMs : 1);
-
     return Stack(
       children: [
         // 封面模糊环境背景（切歌交叉渐变）
@@ -134,129 +134,29 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
         Positioned.fill(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final coverSize =
-                  (constraints.maxHeight * 0.34).clamp(150.0, 240.0);
+              final wide = constraints.maxWidth >= 760;
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(28, 4, 28, 20),
+                child: wide
+                    ? _wideLayout(constraints, track, playing, position)
+                    : _narrowLayout(constraints, track, playing, position),
+              );
+            },
+          ),
+        ),
+        // 底部控制区覆盖在最下（两种布局共用，由各自 Column 排布）
+        Positioned.fill(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxMs = duration.inMilliseconds.toDouble();
+              final curMs = position.inMilliseconds
+                  .toDouble()
+                  .clamp(0, maxMs > 0 ? maxMs : 1);
               return Padding(
                 padding: const EdgeInsets.fromLTRB(28, 4, 28, 20),
                 child: Column(
                   children: [
-                    const Spacer(flex: 2),
-                    // 封面（光晕呼吸 + 暂停缩小）
-                    AnimatedScale(
-                      scale: playing ? 1.0 : 0.94,
-                      duration: const Duration(milliseconds: 400),
-                      curve: Curves.easeOut,
-                      child: AnimatedBuilder(
-                        animation: _glow,
-                        builder: (context, child) {
-                          final t = _glow.value;
-                          final dark = Theme.of(context).brightness ==
-                              Brightness.dark;
-                          final glowA = dark
-                              ? const Color(0xFFEC407A)
-                              : const Color(0xFF7C4DFF);
-                          final glowB = dark
-                              ? const Color(0xFF9C7CFF)
-                              : const Color(0xFFEC407A);
-                          return Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                    color: glowA.withValues(
-                                        alpha: 0.28 + 0.18 * t),
-                                    blurRadius: 45,
-                                    spreadRadius: 2 + 3 * t,
-                                    offset: const Offset(-6, 10)),
-                                BoxShadow(
-                                    color: glowB.withValues(
-                                        alpha: 0.28 + 0.18 * (1 - t)),
-                                    blurRadius: 45,
-                                    spreadRadius: 2 + 3 * (1 - t),
-                                    offset: const Offset(6, 10)),
-                              ],
-                            ),
-                            child: child,
-                          );
-                        },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: _cover(track.coverUrl, coverSize),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Text(track.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 4),
-                    Text(track.artist,
-                        style: Theme.of(context).textTheme.bodySmall),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Tooltip(
-                          message: _qualityTip(track),
-                          child: QualityBadge(choice: track.quality),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          tooltip: '换源试听',
-                          icon: const Icon(Icons.find_replace),
-                          onPressed: () => SourceAuditionSheet.show(context),
-                        ),
-                        IconButton(
-                          tooltip: _showLyrics ? '隐藏歌词' : '显示歌词',
-                          icon: Icon(_showLyrics
-                              ? Icons.lyrics
-                              : Icons.lyrics_outlined),
-                          color: _showLyrics
-                              ? Theme.of(context).colorScheme.primary
-                              : null,
-                          onPressed: () =>
-                              setState(() => _showLyrics = !_showLyrics),
-                        ),
-                        if (track.bvid.startsWith('BV'))
-                          IconButton(
-                            tooltip: '在浏览器打开',
-                            icon: const Icon(Icons.open_in_new),
-                            onPressed: () => launchUrlString(
-                                'https://www.bilibili.com/video/${track.bvid}'),
-                          ),
-                        if (track.bvid.isNotEmpty) ...[
-                          IconButton(
-                            tooltip: '加入歌单',
-                            icon: const Icon(Icons.playlist_add),
-                            onPressed: () => showAddToPlaylistDialog(
-                              context,
-                              ref,
-                              trackId: track.bvid,
-                              title: track.title,
-                              artist: track.artist,
-                              cover: track.coverUrl,
-                              cid: track.cid,
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '下载（最优音质原始流）',
-                            icon: const Icon(Icons.download),
-                            onPressed: () => _download(track),
-                          ),
-                        ],
-                      ],
-                    ),
-                    // 歌词（显示时替换留白区，不撑爆布局）
-                    if (_showLyrics)
-                      Expanded(child: _lyricsView(position))
-                    else
-                      const Spacer(flex: 3),
+                    const Spacer(),
                     Slider(
                       value: _dragValue ?? (maxMs > 0 ? curMs / maxMs : 0),
                       onChanged: (v) => setState(() => _dragValue = v),
@@ -355,29 +255,118 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     );
   }
 
-  String _qualityTip(CurrentTrack track) {
-    final q = track.quality;
-    if (q.isLossless) return 'FLAC 无损 / Hi-Res 音轨';
-    if (q.isDolby) return '杜比全景声音轨';
-    return '${q.qualityLabel} AAC 有损压缩音轨（B站分级：64K<132K<192K）';
+  /// 宽屏：左封面信息列 + 右歌词/评论面板；底部控制由外层叠加。
+  Widget _wideLayout(BoxConstraints constraints, CurrentTrack track,
+      bool playing, Duration position) {
+    final coverMax = math
+        .min(constraints.maxWidth * 0.30, constraints.maxHeight * 0.42)
+        .clamp(150.0, 300.0);
+    // 底部控制区约占 150px，内容区扣掉它
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 150),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: constraints.maxWidth * 0.38,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _glowCover(track.coverUrl, coverMax, playing),
+                const SizedBox(height: 18),
+                _trackMeta(track, alignCenter: true),
+              ],
+            ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(child: _panelWithTabs(track, position)),
+        ],
+      ),
+    );
   }
 
-  Widget _cover(String coverUrl, double size) {
+  /// 窄屏：顶部封面行 + 下面板；底部控制由外层叠加。
+  Widget _narrowLayout(BoxConstraints constraints, CurrentTrack track,
+      bool playing, Duration position) {
+    final coverMax =
+        (constraints.maxHeight * 0.20).clamp(96.0, 150.0);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 150),
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _glowCover(track.coverUrl, coverMax, playing),
+              const SizedBox(width: 16),
+              Expanded(child: _trackMeta(track, alignCenter: false)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(child: _panelWithTabs(track, position)),
+        ],
+      ),
+    );
+  }
+
+  /// 封面（光晕呼吸 + 暂停缩小），保留原始宽高比。
+  Widget _glowCover(String coverUrl, double maxSide, bool playing) {
+    return AnimatedScale(
+      scale: playing ? 1.0 : 0.96,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOut,
+      child: AnimatedBuilder(
+        animation: _glow,
+        builder: (context, child) {
+          final t = _glow.value;
+          final dark = Theme.of(context).brightness == Brightness.dark;
+          final glowA =
+              dark ? const Color(0xFFEC407A) : const Color(0xFF7C4DFF);
+          final glowB =
+              dark ? const Color(0xFF9C7CFF) : const Color(0xFFEC407A);
+          return Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                    color: glowA.withValues(alpha: 0.28 + 0.18 * t),
+                    blurRadius: 45,
+                    spreadRadius: 2 + 3 * t,
+                    offset: const Offset(-6, 10)),
+                BoxShadow(
+                    color: glowB.withValues(alpha: 0.28 + 0.18 * (1 - t)),
+                    blurRadius: 45,
+                    spreadRadius: 2 + 3 * (1 - t),
+                    offset: const Offset(6, 10)),
+              ],
+            ),
+            child: child,
+          );
+        },
+        child: _coverNatural(coverUrl, maxSide),
+      ),
+    );
+  }
+
+  /// 原比例封面：以短边限制最大尺寸，不裁剪、不强制方形。
+  Widget _coverNatural(String coverUrl, double maxSide) {
+    Widget image;
     if (coverUrl.startsWith('http')) {
-      return CachedNetworkImage(
+      image = CachedNetworkImage(
         imageUrl: coverUrl,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
+        fit: BoxFit.contain,
         httpHeaders: const {'Referer': kBiliReferer},
-        errorWidget: (_, _, _) => _coverPlaceholder(size),
+        errorWidget: (_, _, _) => _coverPlaceholder(maxSide),
       );
+    } else if (coverUrl.isNotEmpty && File(coverUrl).existsSync()) {
+      image = Image.file(File(coverUrl), fit: BoxFit.contain);
+    } else {
+      image = _coverPlaceholder(maxSide);
     }
-    if (coverUrl.isNotEmpty && File(coverUrl).existsSync()) {
-      return Image.file(File(coverUrl),
-          width: size, height: size, fit: BoxFit.cover);
-    }
-    return _coverPlaceholder(size);
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxSide, maxHeight: maxSide),
+      child: ClipRRect(borderRadius: BorderRadius.circular(16), child: image),
+    );
   }
 
   Widget _coverPlaceholder(double size) => SizedBox(
@@ -385,10 +374,125 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
       height: size,
       child: Icon(Icons.music_note, size: size / 3));
 
+  /// 标题/歌手/徽章/操作按钮。
+  Widget _trackMeta(CurrentTrack track, {required bool alignCenter}) {
+    final align =
+        alignCenter ? CrossAxisAlignment.center : CrossAxisAlignment.start;
+    final textAlign = alignCenter ? TextAlign.center : TextAlign.start;
+    return Column(
+      crossAxisAlignment: align,
+      children: [
+        Text(track.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: textAlign,
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(track.artist, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 10),
+        Tooltip(
+          message: _qualityTip(track),
+          child: QualityBadge(choice: track.quality),
+        ),
+        Row(
+          mainAxisAlignment: alignCenter
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
+          children: [
+            IconButton(
+              tooltip: '换源试听',
+              icon: const Icon(Icons.find_replace),
+              onPressed: () => SourceAuditionSheet.show(context),
+            ),
+            if (track.bvid.startsWith('BV'))
+              IconButton(
+                tooltip: '在浏览器打开',
+                icon: const Icon(Icons.open_in_new),
+                onPressed: () => launchUrlString(
+                    'https://www.bilibili.com/video/${track.bvid}'),
+              ),
+            if (track.bvid.isNotEmpty) ...[
+              IconButton(
+                tooltip: '加入歌单',
+                icon: const Icon(Icons.playlist_add),
+                onPressed: () => showAddToPlaylistDialog(
+                  context,
+                  ref,
+                  trackId: track.bvid,
+                  title: track.title,
+                  artist: track.artist,
+                  cover: track.coverUrl,
+                  cid: track.cid,
+                ),
+              ),
+              IconButton(
+                tooltip: '下载（最优音质原始流）',
+                icon: const Icon(Icons.download),
+                onPressed: () => _download(track),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// 歌词/评论二选一面板：顶部切换 + 上下渐变遮罩 + 隐藏滚动条。
+  Widget _panelWithTabs(CurrentTrack track, Duration position) {
+    return Column(
+      children: [
+        SegmentedButton<int>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(value: 0, label: Text('歌词')),
+            ButtonSegment(value: 1, label: Text('评论')),
+          ],
+          selected: {_panelTab},
+          onSelectionChanged: (s) => setState(() => _panelTab = s.first),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: ShaderMask(
+            // 上渐隐 → 中间实 → 下渐隐
+            shaderCallback: (rect) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                Colors.black,
+                Colors.black,
+                Colors.transparent,
+              ],
+              stops: [0.0, 0.07, 0.93, 1.0],
+            ).createShader(rect),
+            blendMode: BlendMode.dstIn,
+            child: ScrollConfiguration(
+              behavior: ScrollConfiguration.of(context)
+                  .copyWith(scrollbars: false),
+              child: _panelTab == 0
+                  ? _lyricsView(position)
+                  : CommentsPanel(
+                      key: ValueKey('${track.bvid}:${track.cid}'),
+                      track: track),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _qualityTip(CurrentTrack track) {
+    final q = track.quality;
+    if (q.isLossless) return 'FLAC 无损 / Hi-Res 音轨';
+    if (q.isDolby) return '杜比全景声音轨';
+    return '${q.qualityLabel} AAC 有损压缩音轨（B站分级：64K<132K<192K）';
+  }
+
   Widget _lyricsView(Duration position) {
     if (_lyricLines.isEmpty) {
       return const Center(
-          child: Text('暂无歌词', style: TextStyle(color: Colors.grey)));
+          child: Text('暂无歌词 / 纯音乐，请欣赏',
+              style: TextStyle(color: Colors.grey)));
     }
     final current = lrcCurrentIndex(_lyricLines, position);
     if (_lyricScroll.hasClients && current >= 0) {

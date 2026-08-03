@@ -141,12 +141,13 @@ class PlayerService {
     PlayMode.sequence,
   ];
 
-  /// 直接设置播放模式（持久化恢复用）。
-  void setMode(PlayMode mode) {
+  /// 直接设置播放模式。[save] 为 false 时仅本次会话生效
+  /// （合集强制列表循环用），不覆盖用户的持久化选择。
+  void setMode(PlayMode mode, {bool save = true}) {
     if (mode == _mode) return;
     _mode = mode;
     _modeController.add(_mode);
-    onModeChanged?.call(_mode);
+    if (save) onModeChanged?.call(_mode);
   }
 
   /// 循环切换播放模式（列表循环 → 单曲 → 随机 → 顺序）。
@@ -157,9 +158,12 @@ class PlayerService {
   }
 
   /// 播放整个队列（歌单连续播放）：从 [startIndex] 开始，播完按模式自动切歌。
+  /// [mode] 指定本次播放的模式（仅会话内生效，不覆盖持久化记忆）：
+  /// B站合集传 loopAll，自己的歌单传用户记忆的模式。
   Future<CurrentTrack> playQueue(List<QueueItem> items,
-      {int startIndex = 0}) async {
+      {int startIndex = 0, PlayMode? mode}) async {
     assert(items.isNotEmpty);
+    if (mode != null) setMode(mode, save: false);
     _queue = List.of(items);
     _queueIndex = startIndex;
     _completedSub ??= player.stream.completed.listen((done) {

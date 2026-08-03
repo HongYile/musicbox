@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 import '../providers.dart';
 import '../services/lyrics/lrc_parser.dart';
+import '../services/lyrics/t2s.dart';
 import '../services/player/player_service.dart';
 import '../services/sources/bilibili/api/client.dart';
 import '../widgets/add_to_playlist_dialog.dart';
@@ -51,7 +52,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     super.dispose();
   }
 
-  /// 曲目变化时拉取歌词（LRCLib，与音源解耦）。
+  /// 曲目变化时拉取歌词（LRCLib，与音源解耦），统一转为简体中文。
   Future<void> _loadLyrics(CurrentTrack track) async {
     final key = '${track.bvid}:${track.cid}:${track.title}';
     if (key == _lyricKey) return;
@@ -59,9 +60,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     final raw = await ref
         .read(lrclibServiceProvider)
         .fetchLyric(track: track.title, artist: track.artist);
+    await T2s.ensureLoaded();
     if (!mounted || key != _lyricKey) return;
     setState(() {
-      _lyricLines = raw == null ? const [] : parseLrc(raw);
+      _lyricLines = raw == null ? const [] : parseLrc(T2s.convert(raw));
     });
     if (_lyricScroll.hasClients) _lyricScroll.jumpTo(0);
   }
@@ -495,33 +497,42 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
               style: TextStyle(color: Colors.grey)));
     }
     final current = lrcCurrentIndex(_lyricLines, position);
-    if (_lyricScroll.hasClients && current >= 0) {
-      final target = (current * 40.0 - 80).clamp(0.0, double.infinity);
-      if ((_lyricScroll.offset - target).abs() > 40) {
-        _lyricScroll.animateTo(target,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut);
-      }
-    }
-    return ListView.builder(
-      controller: _lyricScroll,
-      itemExtent: 40,
-      itemCount: _lyricLines.length,
-      itemBuilder: (context, i) {
-        final isCurrent = i == current;
-        return Center(
-          child: Text(
-            _lyricLines[i].text.isEmpty ? '·' : _lyricLines[i].text,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: isCurrent ? 15 : 13,
-              fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-              color: isCurrent
-                  ? Theme.of(context).colorScheme.primary
-                  : Colors.grey,
-            ),
-          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 上下各垫半屏：第一行起始即在中间，歌词自下而上升起（QQ音乐式）。
+        final pad = (constraints.maxHeight / 2 - 20)
+            .clamp(0.0, double.infinity);
+        if (_lyricScroll.hasClients && current >= 0) {
+          final target = current * 40.0;
+          if ((_lyricScroll.offset - target).abs() > 40) {
+            _lyricScroll.animateTo(target,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut);
+          }
+        }
+        return ListView.builder(
+          controller: _lyricScroll,
+          padding: EdgeInsets.symmetric(vertical: pad),
+          itemExtent: 40,
+          itemCount: _lyricLines.length,
+          itemBuilder: (context, i) {
+            final isCurrent = i == current;
+            return Center(
+              child: Text(
+                _lyricLines[i].text.isEmpty ? '·' : _lyricLines[i].text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: isCurrent ? 15 : 13,
+                  fontWeight:
+                      isCurrent ? FontWeight.bold : FontWeight.normal,
+                  color: isCurrent
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey,
+                ),
+              ),
+            );
+          },
         );
       },
     );

@@ -233,7 +233,12 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
       final target = tracks[startIndex].trackId;
       var index = items.indexWhere((e) => e.bvid == target);
       if (index < 0) index = 0;
-      await ref.read(playerServiceProvider).playQueue(items, startIndex: index);
+      // 自己的歌单：恢复用户记忆的播放模式（合集强制循环只是会话级的）
+      final savedMode = await readSavedPlayMode();
+      if (!mounted) return;
+      await ref
+          .read(playerServiceProvider)
+          .playQueue(items, startIndex: index, mode: savedMode);
       
     } catch (e) {
       if (mounted) {

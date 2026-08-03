@@ -25,6 +25,7 @@ class _CommentItem {
     required this.like,
     required this.timeSec,
     this.replyCount = 0,
+    this.subReplies = const [],
   });
 
   final String author;
@@ -33,6 +34,9 @@ class _CommentItem {
   final int like;
   final int timeSec;
   final int replyCount;
+
+  /// 楼中楼预览（B站接口自带，最多 3 条）。
+  final List<_CommentItem> subReplies;
 }
 
 class _CommentsPanelState extends ConsumerState<CommentsPanel> {
@@ -110,6 +114,16 @@ class _CommentsPanelState extends ConsumerState<CommentsPanel> {
               like: c.like,
               timeSec: c.timeSec,
               replyCount: c.replyCount,
+              subReplies: [
+                for (final s in c.subReplies)
+                  _CommentItem(
+                    author: s.author,
+                    avatar: s.avatar,
+                    message: s.message,
+                    like: s.like,
+                    timeSec: s.timeSec,
+                  ),
+              ],
             ),
         ]);
         _isEnd = page.isEnd;
@@ -214,7 +228,9 @@ class _CommentsPanelState extends ConsumerState<CommentsPanel> {
                       ],
                     ),
                     const SizedBox(height: 3),
-                    Text(c.message, style: const TextStyle(fontSize: 13)),
+                    _ExpandableText(
+                        text: c.message,
+                        style: const TextStyle(fontSize: 13)),
                     const SizedBox(height: 3),
                     Row(
                       children: [
@@ -235,11 +251,114 @@ class _CommentsPanelState extends ConsumerState<CommentsPanel> {
                         ],
                       ],
                     ),
+                    // 楼中楼预览（最多 3 条，B站风格灰底缩进）
+                    if (c.subReplies.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 6),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final s in c.subReplies)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 2),
+                                child: Text.rich(
+                                  TextSpan(children: [
+                                    TextSpan(
+                                        text: '${s.author}：',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary)),
+                                    TextSpan(
+                                        text: s.message,
+                                        style: const TextStyle(fontSize: 12)),
+                                  ]),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            if (c.replyCount > c.subReplies.length)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text('共 ${c.replyCount} 条回复',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary)),
+                              ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+}
+
+/// 超长文本折叠/展开：超过 3 行时底部显示「展开 / 收起」。
+class _ExpandableText extends StatefulWidget {
+  const _ExpandableText({required this.text, required this.style});
+
+  final String text;
+  final TextStyle style;
+
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  static const _maxLines = 3;
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: widget.text, style: widget.style),
+          maxLines: _maxLines,
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: constraints.maxWidth);
+        final overflow = painter.didExceedMaxLines;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.text,
+              style: widget.style,
+              maxLines: _expanded ? null : _maxLines,
+              overflow: _expanded ? null : TextOverflow.ellipsis,
+            ),
+            if (overflow)
+              GestureDetector(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    _expanded ? '收起' : '展开',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.primary),
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );

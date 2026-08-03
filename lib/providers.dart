@@ -277,10 +277,18 @@ final queueProvider = StreamProvider<List<QueueItem>>(
   (ref) => ref.watch(playerServiceProvider).queueStream,
 );
 
-/// 播放模式（顺序/单曲/随机）。
+/// 播放模式（列表循环/顺序/单曲/随机）。
 final playModeProvider = StreamProvider<PlayMode>(
   (ref) => ref.watch(playerServiceProvider).modeStream,
 );
+
+/// 读取用户持久化记忆的播放模式（默认列表循环）。
+/// 自己的歌单开始播放时恢复它——B站合集强制 loopAll 只是会话级的。
+Future<PlayMode> readSavedPlayMode() async {
+  final prefs = await SharedPreferences.getInstance();
+  return PlayMode.values.asNameMap()[prefs.getString('play_mode')] ??
+      PlayMode.loopAll;
+}
 
 /// LRCLib 歌词服务。
 final lrclibServiceProvider = Provider<LrclibService>((ref) => LrclibService());

@@ -136,6 +136,7 @@ class BiliComment {
     required this.like,
     required this.timeSec,
     required this.replyCount,
+    this.subReplies = const [],
   });
 
   final String author;
@@ -147,10 +148,14 @@ class BiliComment {
   /// 楼中楼回复数。
   final int replyCount;
 
+  /// 楼中楼预览（接口自带，最多 3 条）。
+  final List<BiliComment> subReplies;
+
   factory BiliComment.fromJson(Map<String, dynamic> json) {
     final member = (json['member'] as Map?)?.cast<String, dynamic>() ?? const {};
     final content =
         (json['content'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final subs = (json['replies'] as List?) ?? const [];
     return BiliComment(
       author: (member['uname'] ?? '') as String,
       avatar: (member['avatar'] ?? '') as String,
@@ -158,6 +163,10 @@ class BiliComment {
       like: (json['like'] as num?)?.toInt() ?? 0,
       timeSec: (json['ctime'] as num?)?.toInt() ?? 0,
       replyCount: (json['rcount'] as num?)?.toInt() ?? 0,
+      subReplies: [
+        for (final s in subs.whereType<Map>())
+          BiliComment.fromJson(s.cast<String, dynamic>()),
+      ],
     );
   }
 }

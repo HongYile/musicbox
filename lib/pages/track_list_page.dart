@@ -72,8 +72,9 @@ class _TrackListPageState extends ConsumerState<TrackListPage> {
       return;
     }
     try {
+      // B站合集：默认列表循环（仅会话内，不覆盖用户记忆的模式）
       await player.playQueue([for (final x in parts) _queueItem(x)],
-          startIndex: index);
+          startIndex: index, mode: PlayMode.loopAll);
     } catch (e) {
       _toast('播放失败: $e');
     }
@@ -83,7 +84,8 @@ class _TrackListPageState extends ConsumerState<TrackListPage> {
     try {
       await ref
           .read(playerServiceProvider)
-          .playQueue([for (final p in parts) _queueItem(p)]);
+          .playQueue([for (final p in parts) _queueItem(p)],
+              mode: PlayMode.loopAll);
       _toast('开始播放全部（共 ${parts.length} 首）');
     } catch (e) {
       _toast('播放失败: $e');

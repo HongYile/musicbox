@@ -1,5 +1,6 @@
 // 评论链路实测：用 App 持久化 cookie 跑 aidOf/replies 与 songIdByMid/comments。
 // 用法：dart run tool/comments_check.dart [bvid] [songmid]
+// ignore_for_file: avoid_print
 import 'dart:io';
 
 import 'package:unison/services/sources/bilibili/api/client.dart';

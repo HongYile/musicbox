@@ -5,7 +5,7 @@
   "sourceLinkTitle": "主页",
   "sourceLinkUrl": "https://github.com/HongYile/unison",
   "sourceImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-  "sourceUpdateTime": "2026-08-03T18:15:00+0800",
+  "sourceUpdateTime": "2026-08-03T19:42:00+0800",
   "sourceDescription": "聚合音乐播放器：B站 Hi-Res 无损 / QQ音乐 / 换源试听 / 歌单下载 / 坚果云同步。个人自用，仅使用自己账号权益。",
   "appCategories": [
     "音乐"
@@ -14,12 +14,12 @@
     {
       "appType": "SELF_SIGN",
       "appCateIndex": 0,
-      "appUpdateTime": "2026-08-03T18:15:00+0800",
+      "appUpdateTime": "2026-08-03T19:42:00+0800",
       "appName": "Unison",
-      "appVersion": "0.2.8",
+      "appVersion": "0.2.9",
       "appImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.8/unison-ios-unsigned.ipa",
-      "appDescription": "修复随机播放、播放页改左封面右歌词/评论双面板、封面保留原始比例"
+      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.9/unison-ios-unsigned.ipa",
+      "appDescription": "歌词转简中并起始居中、评论展开/收起与楼中楼、合集强制列表循环"
     }
   ]
 }

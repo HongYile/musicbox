@@ -134,11 +134,22 @@ class SelfUpdater {
   Future<void> installFromDmg(String dmgPath) async {
     final mount = await _attach(dmgPath);
     try {
-      final src = '$mount/musicbox.app';
-      if (!Directory(src).existsSync()) {
-        throw StateError('DMG 内未找到 musicbox.app');
-      }
+      // 按当前运行的 .app 名查找（改名后不再写死 musicbox.app）；
+      // 找不到则回退到挂载点下任意 *.app。
       final target = currentAppPath();
+      final appName = target.split('/').last;
+      var src = '$mount/$appName';
+      if (!Directory(src).existsSync()) {
+        final candidates = Directory(mount)
+            .listSync()
+            .whereType<Directory>()
+            .where((d) => d.path.endsWith('.app'))
+            .toList();
+        if (candidates.isEmpty) {
+          throw StateError('DMG 内未找到 $appName');
+        }
+        src = candidates.first.path;
+      }
       final backup = '${Directory.systemTemp.path}/musicbox_backup.app';
 
       await Process.run('rm', ['-rf', backup]);

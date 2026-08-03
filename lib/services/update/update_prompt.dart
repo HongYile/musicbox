@@ -50,8 +50,21 @@ Future<void> checkAndPromptUpdate(BuildContext context,
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
-          child: Text(release.notes.isEmpty ? '（无更新说明）' : release.notes,
-              style: const TextStyle(fontSize: 13)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(release.notes.isEmpty ? '（无更新说明）' : release.notes,
+                  style: const TextStyle(fontSize: 13)),
+              if (Platform.isIOS || Platform.isAndroid) ...[
+                const SizedBox(height: 12),
+                const Text(
+                    '点「去 GBox 更新」会拉起 IPA 下载，完成后分享到 GBox 签名安装；'
+                    '也可以直接在 GBox 源里下拉刷新后一键更新。',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ],
+          ),
         ),
       ),
       actions: [
@@ -76,6 +89,14 @@ Future<void> checkAndPromptUpdate(BuildContext context,
               _runSelfUpdate(context, release);
             },
             child: const Text('更新'),
+          )
+        else if (Platform.isIOS || Platform.isAndroid)
+          FilledButton(
+            onPressed: () {
+              launchUrlString(release.ipaUrl ?? release.htmlUrl);
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('去 GBox 更新'),
           )
         else
           FilledButton(

@@ -18,6 +18,7 @@ class AppRelease {
     required this.notes,
     required this.htmlUrl,
     this.dmgUrl,
+    this.ipaUrl,
   });
 
   final String tag;
@@ -27,6 +28,9 @@ class AppRelease {
 
   /// macOS DMG 附件直链（无则 null）。
   final String? dmgUrl;
+
+  /// iOS IPA 附件直链（无则 null）。
+  final String? ipaUrl;
 }
 
 class UpdateChecker {
@@ -68,7 +72,8 @@ class UpdateChecker {
         name: (data['name'] ?? '') as String,
         notes: (data['body'] ?? '') as String,
         htmlUrl: (data['html_url'] ?? '') as String,
-        dmgUrl: _findDmg(data['assets'] as List? ?? const []),
+        dmgUrl: _findAsset(data['assets'] as List? ?? const [], '.dmg'),
+        ipaUrl: _findAsset(data['assets'] as List? ?? const [], '.ipa'),
       );
     } catch (_) {
       return null;
@@ -89,16 +94,17 @@ class UpdateChecker {
         name: (data['name'] ?? '') as String,
         notes: (data['body'] ?? '') as String,
         htmlUrl: (data['html_url'] ?? '') as String,
-        dmgUrl: _findDmg(data['assets'] as List? ?? const []),
+        dmgUrl: _findAsset(data['assets'] as List? ?? const [], '.dmg'),
+        ipaUrl: _findAsset(data['assets'] as List? ?? const [], '.ipa'),
       );
     } catch (_) {
       return null;
     }
   }
 
-  String? _findDmg(List<dynamic> assets) {
+  String? _findAsset(List<dynamic> assets, String suffix) {
     for (final a in assets) {
-      if (a is Map && (a['name'] ?? '').toString().endsWith('.dmg')) {
+      if (a is Map && (a['name'] ?? '').toString().endsWith(suffix)) {
         // GitHub 用 browser_download_url；Gitee attach_files 同名字段，
         // 部分版本用 download_url，做个兼容。
         final url = a['browser_download_url'] ?? a['download_url'];

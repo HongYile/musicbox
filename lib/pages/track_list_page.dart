@@ -17,6 +17,9 @@ import 'package:url_launcher/url_launcher_string.dart';
 ///
 /// 交互模型：点击曲目（或右侧播放键）立即播放并回到播放页；
 /// 「+」加入播放队列；下载/加入歌单收在「···」菜单。
+///
+/// [embedded] 为 true 时作为内嵌视图渲染（无自带 Scaffold/AppBar，
+/// 顶部为返回行），用于搜索页内嵌打开——左侧导航栏与通栏播放器常驻。
 class TrackListPage extends ConsumerStatefulWidget {
   const TrackListPage({
     super.key,
@@ -24,12 +27,20 @@ class TrackListPage extends ConsumerStatefulWidget {
     required this.title,
     required this.author,
     required this.cover,
+    this.embedded = false,
+    this.onBack,
   });
 
   final String bvid;
   final String title;
   final String author;
   final String cover;
+
+  /// 内嵌模式：不铺 TechBackground/Scaffold，由调用方提供容器。
+  final bool embedded;
+
+  /// 内嵌模式的返回回调（整页 push 时为 null，用系统返回）。
+  final VoidCallback? onBack;
 
   @override
   ConsumerState<TrackListPage> createState() => _TrackListPageState();
@@ -194,6 +205,8 @@ class _TrackListPageState extends ConsumerState<TrackListPage> {
   @override
   Widget build(BuildContext context) {
     final loggedIn = ref.watch(loginStateProvider).isLogin;
+    final body = _buildBody(context, loggedIn);
+    if (widget.embedded) return body;
     // push 路由会遮盖底层 TechBackground（opaque），本页需自铺背景。
     return TechBackground(
       child: Scaffold(
@@ -210,7 +223,39 @@ class _TrackListPageState extends ConsumerState<TrackListPage> {
             ),
           ],
         ),
-      body: FutureBuilder<List<BiliVideoPage>>(
+        body: body,
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, bool loggedIn) {
+    return Column(
+      children: [
+        if (widget.embedded)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 4, 12, 0),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: '返回',
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onBack,
+                ),
+                Expanded(
+                  child: Text('曲目列表',
+                      style: Theme.of(context).textTheme.titleMedium),
+                ),
+                IconButton(
+                  tooltip: '在浏览器打开',
+                  icon: const Icon(Icons.open_in_new),
+                  onPressed: () => launchUrlString(
+                      'https://www.bilibili.com/video/${widget.bvid}'),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: FutureBuilder<List<BiliVideoPage>>(
         future: _partsFuture,
         builder: (context, snap) {
           if (snap.hasError) {
@@ -321,8 +366,9 @@ class _TrackListPageState extends ConsumerState<TrackListPage> {
             ],
           );
         },
-      ),
+          ),
         ),
+      ],
     );
   }
 }

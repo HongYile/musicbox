@@ -5,7 +5,7 @@
   "sourceLinkTitle": "主页",
   "sourceLinkUrl": "https://github.com/HongYile/unison",
   "sourceImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-  "sourceUpdateTime": "2026-08-03T13:20:00+0800",
+  "sourceUpdateTime": "2026-08-03T15:50:00+0800",
   "sourceDescription": "聚合音乐播放器：B站 Hi-Res 无损 / QQ音乐 / 换源试听 / 歌单下载 / 坚果云同步。个人自用，仅使用自己账号权益。",
   "appCategories": [
     "音乐"
@@ -14,12 +14,12 @@
     {
       "appType": "SELF_SIGN",
       "appCateIndex": 0,
-      "appUpdateTime": "2026-08-03T13:20:00+0800",
+      "appUpdateTime": "2026-08-03T15:50:00+0800",
       "appName": "Unison",
-      "appVersion": "0.2.5",
+      "appVersion": "0.2.6",
       "appImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.5/unison-ios-unsigned.ipa",
-      "appDescription": "同首歌，多源听：自更新修复、显示名修正、移动端网页登录"
+      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.6/unison-ios-unsigned.ipa",
+      "appDescription": "歌单重命名/拖拽排序、搜索页内嵌曲目列表与自动续页"
     }
   ]
 }

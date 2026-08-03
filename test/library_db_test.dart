@@ -26,6 +26,21 @@ void main() {
       db.renamePlaylist(id, '新名');
       expect(db.listPlaylists().single.name, '新名');
     });
+
+    test('新歌单排最上，reorderPlaylists 自定义顺序', () {
+      final a = db.createPlaylist('A');
+      final b = db.createPlaylist('B');
+      final c = db.createPlaylist('C');
+
+      // 新建排最上：C, B, A
+      expect(db.listPlaylists().map((p) => p.id), [c, b, a]);
+
+      // 拖拽重排：A, C, B
+      db.reorderPlaylists([a, c, b]);
+      expect(db.listPlaylists().map((p) => p.id), [a, c, b]);
+      // summaries 同序
+      expect(db.listPlaylistSummaries().map((p) => p.id), [a, c, b]);
+    });
   });
 
   group('playlist_tracks', () {

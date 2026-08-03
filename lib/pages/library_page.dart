@@ -87,21 +87,38 @@ class _PlaylistsTab extends ConsumerWidget {
       ),
       body: playlists.isEmpty
           ? const Center(child: Text('还没有歌单，点右下角新建'))
-          : ListView.builder(
+          : ReorderableListView.builder(
+              buildDefaultDragHandles: false,
               itemCount: playlists.length,
+              onReorderItem: (oldIndex, newIndex) {
+                // onReorderItem 的 newIndex 已按移除 oldIndex 调整过
+                final ids = playlists.map((p) => p.id).toList();
+                ids.insert(newIndex, ids.removeAt(oldIndex));
+                ref.read(playlistsProvider.notifier).reorder(ids);
+              },
               itemBuilder: (context, i) {
                 final p = playlists[i];
                 return ListTile(
-                  leading: const Icon(Icons.queue_music),
+                  key: ValueKey(p.id),
+                  leading: ReorderableDragStartListener(
+                    index: i,
+                    child: const Icon(Icons.drag_indicator),
+                  ),
                   title: Text(p.name),
                   subtitle: Text('${p.trackCount} 首'),
                   trailing: PopupMenuButton<String>(
-                    onSelected: (v) {
-                      if (v == 'delete') {
+                    onSelected: (v) async {
+                      if (v == 'rename') {
+                        final name = await _askRename(context, p.name);
+                        if (name != null && name.isNotEmpty) {
+                          ref.read(playlistsProvider.notifier).rename(p.id, name);
+                        }
+                      } else if (v == 'delete') {
                         ref.read(playlistsProvider.notifier).delete(p.id);
                       }
                     },
                     itemBuilder: (_) => const [
+                      PopupMenuItem(value: 'rename', child: Text('重命名')),
                       PopupMenuItem(value: 'delete', child: Text('删除歌单')),
                     ],
                   ),
@@ -121,6 +138,36 @@ class _PlaylistsTab extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 重命名歌单对话框（带初始值）。
+Future<String?> _askRename(BuildContext context, String current) async {
+  final controller = TextEditingController(text: current);
+  final result = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('重命名歌单'),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: const InputDecoration(hintText: '歌单名称'),
+        onSubmitted: (v) => Navigator.of(dialogContext).pop(v.trim()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () =>
+              Navigator.of(dialogContext).pop(controller.text.trim()),
+          child: const Text('确定'),
+        ),
+      ],
+    ),
+  );
+  controller.dispose();
+  return result;
 }
 
 /// 歌单详情（内嵌视图）：曲目列表，点击播放/暂停切换，支持下载/移除。

@@ -193,33 +193,65 @@ class SearchController
 
   final Ref _ref;
 
-  Future<void> search(String keyword) async {
-    if (keyword.trim().isEmpty) return;
-    state = const AsyncValue.loading();
+  String _keyword = '';
+  int _page = 1;
+
+  /// 续页状态（UI 侧配合 setState 展示底部指示器）。
+  bool loadingMore = false;
+  bool noMore = false;
+
+  Future<List<BiliSearchResult>> _fetch(String keyword, int page) {
     final source = _ref.read(selectedSourceProvider);
     if (source == 'qqmusic') {
-      state = await AsyncValue.guard(() async {
-        final songs = await _ref
-            .read(qqMusicSourceProvider)
-            .searchSongs(keyword.trim());
-        return [
-          for (final s in songs)
-            BiliSearchResult(
-              bvid: s.songMid,
-              title: s.name,
-              author: s.singer,
-              durationSec: s.intervalSec,
-              coverUrl: s.coverUrl,
-              play: 0,
-            ),
-        ];
-      });
-      return;
+      return _ref
+          .read(qqMusicSourceProvider)
+          .searchSongs(keyword, page: page)
+          .then((songs) => [
+                for (final s in songs)
+                  BiliSearchResult(
+                    bvid: s.songMid,
+                    title: s.name,
+                    author: s.singer,
+                    durationSec: s.intervalSec,
+                    coverUrl: s.coverUrl,
+                    play: 0,
+                  ),
+              ]);
     }
     final MusicSource source0 = source == 'netease'
         ? _ref.read(neteaseSourceProvider)
         : _ref.read(musicSourceProvider);
-    state = await AsyncValue.guard(() => source0.search(keyword.trim()));
+    return source0.search(keyword, page: page);
+  }
+
+  Future<void> search(String keyword) async {
+    if (keyword.trim().isEmpty) return;
+    _keyword = keyword.trim();
+    _page = 1;
+    noMore = false;
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _fetch(_keyword, 1));
+  }
+
+  /// 滚动到底自动续页：追加下一页结果；空页标记 noMore。
+  Future<void> loadMore() async {
+    if (loadingMore || noMore || _keyword.isEmpty) return;
+    final current = state.value;
+    if (current == null || current.isEmpty) return;
+    loadingMore = true;
+    try {
+      final next = await _fetch(_keyword, _page + 1);
+      if (next.isEmpty) {
+        noMore = true;
+      } else {
+        _page++;
+        state = AsyncValue.data([...current, ...next]);
+      }
+    } catch (_) {
+      // 续页失败保持现有列表，下次滚动到底可重试。
+    } finally {
+      loadingMore = false;
+    }
   }
 }
 
@@ -318,6 +350,17 @@ class PlaylistsController extends StateNotifier<List<PlaylistSummary>> {
 
   void delete(int id) {
     _db.deletePlaylist(id);
+    refresh();
+  }
+
+  void rename(int id, String name) {
+    _db.renamePlaylist(id, name);
+    refresh();
+  }
+
+  /// 拖拽排序：按新顺序重写 sort_order。
+  void reorder(List<int> orderedIds) {
+    _db.reorderPlaylists(orderedIds);
     refresh();
   }
 

@@ -18,7 +18,36 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   final _controller = TextEditingController();
+  final _scroll = ScrollController();
   bool _opening = false;
+
+  /// 内嵌打开的稿件（不整页 push，左侧导航与通栏播放器常驻）。
+  ({String bvid, String title, String author, String cover})? _opened;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_maybeLoadMore);
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// 距底 200px 内自动续页。
+  void _maybeLoadMore() {
+    if (!_scroll.hasClients) return;
+    if (_scroll.position.extentAfter > 200) return;
+    final notifier = ref.read(searchResultsProvider.notifier);
+    if (notifier.loadingMore || notifier.noMore) return;
+    notifier.loadMore().then((_) {
+      if (mounted) setState(() {}); // 刷新底部指示器
+    });
+    setState(() {});
+  }
 
   Future<void> _play(String bvid, String title, String author, String cover,
       int durationSec) async {
@@ -66,7 +95,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
   }
 
-  /// B站稿件进入曲目列表页（分P 展开/收录/下载/Hi-Res 标识）；网易云/QQ 直接播。
+  /// B站稿件内嵌展开曲目列表（分P 展开/收录/下载/Hi-Res 标识）；网易云/QQ 直接播。
   void _open(String bvid, String title, String author, String cover,
       int durationSec) {
     final source = ref.read(selectedSourceProvider);
@@ -74,33 +103,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       _play(bvid, title, author, cover, durationSec);
       return;
     }
-    // 平滑过场：右侧滑入 + 淡入（风格指南回弹曲线）
-    Navigator.of(context).push(PageRouteBuilder<void>(
-      transitionDuration: const Duration(milliseconds: 320),
-      reverseTransitionDuration: const Duration(milliseconds: 240),
-      pageBuilder: (context, anim, secondary) => TrackListPage(
-        bvid: bvid,
-        title: title,
-        author: author,
-        cover: cover,
-      ),
-      transitionsBuilder: (context, anim, secondary, child) {
-        final curved =
-            CurvedAnimation(parent: anim, curve: const Cubic(.2, .9, .3, 1.15));
-        return FadeTransition(
-          opacity: curved,
-          child: SlideTransition(
-            position: Tween<Offset>(begin: const Offset(0.06, 0), end: Offset.zero)
-                .animate(curved),
-            child: child,
-          ),
-        );
-      },
-    ));
+    setState(() => _opened = (bvid: bvid, title: title, author: author, cover: cover));
   }
 
   @override
   Widget build(BuildContext context) {
+    // 内嵌曲目列表：点搜索结果后整列替换为 TrackListPage，导航栏常驻。
+    final opened = _opened;
+    if (opened != null) {
+      return TrackListPage(
+        bvid: opened.bvid,
+        title: opened.title,
+        author: opened.author,
+        cover: opened.cover,
+        embedded: true,
+        onBack: () => setState(() => _opened = null),
+      );
+    }
+
     final results = ref.watch(searchResultsProvider);
     final source = ref.watch(selectedSourceProvider);
 
@@ -192,8 +212,34 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             data: (list) => list.isEmpty
                 ? const Center(child: Text('输入关键词开始搜索'))
                 : ListView.builder(
-                    itemCount: list.length,
+                    controller: _scroll,
+                    itemCount: list.length + 1,
                     itemBuilder: (context, i) {
+                      // 末尾：续页指示器 / 到底提示
+                      if (i == list.length) {
+                        final notifier =
+                            ref.read(searchResultsProvider.notifier);
+                        if (notifier.loadingMore) {
+                          return const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(
+                                child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2))),
+                          );
+                        }
+                        if (notifier.noMore) {
+                          return const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(
+                                child: Text('没有更多了',
+                                    style: TextStyle(color: Colors.grey))),
+                          );
+                        }
+                        return const SizedBox(height: 16);
+                      }
                       final r = list[i];
                       return GlassCard(
                         margin: const EdgeInsets.symmetric(

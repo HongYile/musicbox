@@ -167,6 +167,21 @@ class LibraryDatabase {
         created_at INTEGER NOT NULL,
         PRIMARY KEY(source_id, track_id)
       )''');
+    // 歌单自定义排序（后加的列，老库补列）。
+    try {
+      _db.execute(
+          'ALTER TABLE playlists ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0');
+    } catch (_) {
+      // 列已存在。
+    }
+    // 老数据回填：保持原"新建在前"的展示顺序。
+    _db.execute('''
+      UPDATE playlists SET sort_order = (
+        SELECT COUNT(*) FROM playlists p2 WHERE p2.created_at > playlists.created_at
+           OR (p2.created_at = playlists.created_at AND p2.id > playlists.id)
+      ) WHERE sort_order = 0 AND NOT EXISTS (
+        SELECT 1 FROM playlists p3 WHERE p3.sort_order != 0
+      )''');
   }
 
   static int _now() => DateTime.now().millisecondsSinceEpoch;
@@ -177,8 +192,10 @@ class LibraryDatabase {
   // ---------- playlists ----------
 
   int createPlaylist(String name) {
+    // 新歌单排最上面（sort_order 越小越靠前）。
     _db.execute(
-      'INSERT INTO playlists(name, created_at) VALUES (?, ?)',
+      '''INSERT INTO playlists(name, created_at, sort_order)
+         VALUES (?, ?, COALESCE((SELECT MIN(sort_order) FROM playlists), 1) - 1)''',
       [name, _now()],
     );
     return _db.lastInsertRowId;
@@ -193,7 +210,7 @@ class LibraryDatabase {
   }
 
   List<Playlist> listPlaylists() => _db
-      .select('SELECT * FROM playlists ORDER BY created_at DESC, id DESC')
+      .select('SELECT * FROM playlists ORDER BY sort_order ASC, id ASC')
       .map(_playlistFromRow)
       .toList();
 
@@ -201,7 +218,7 @@ class LibraryDatabase {
       .select('''
         SELECT p.*, (SELECT COUNT(*) FROM playlist_tracks t
                      WHERE t.playlist_id = p.id) AS track_count
-        FROM playlists p ORDER BY p.created_at DESC, p.id DESC''')
+        FROM playlists p ORDER BY p.sort_order ASC, p.id ASC''')
       .map((row) => PlaylistSummary(
             id: (row['id'] as num).toInt(),
             name: row['name'] as String,
@@ -212,6 +229,16 @@ class LibraryDatabase {
 
   void renamePlaylist(int id, String name) => _db.execute(
       'UPDATE playlists SET name = ? WHERE id = ?', [name, id]);
+
+  /// 按给定 id 顺序重写歌单排序（数组下标即新 sort_order）。
+  void reorderPlaylists(List<int> orderedIds) {
+    final stmt = _db.prepare(
+        'UPDATE playlists SET sort_order = ? WHERE id = ?');
+    for (var i = 0; i < orderedIds.length; i++) {
+      stmt.execute([i, orderedIds[i]]);
+    }
+    stmt.close();
+  }
 
   void deletePlaylist(int id) =>
       _db.execute('DELETE FROM playlists WHERE id = ?', [id]);

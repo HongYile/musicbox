@@ -12,8 +12,8 @@ import '../sources/qqmusic/models.dart';
 import '../sources/qqmusic/stream_select.dart';
 import 'audio_proxy.dart';
 
-/// 播放模式：顺序 / 单曲循环 / 随机。
-enum PlayMode { sequence, single, shuffle }
+/// 播放模式：列表循环（默认）/ 顺序（播完停）/ 单曲循环 / 随机。
+enum PlayMode { sequence, single, shuffle, loopAll }
 
 /// 计算"播完一首"后的下一个队列下标（纯逻辑，可单测）。
 ///
@@ -31,6 +31,8 @@ int? nextQueueIndex({
       return current;
     case PlayMode.sequence:
       return current + 1 < length ? current + 1 : null;
+    case PlayMode.loopAll:
+      return (current + 1) % length;
     case PlayMode.shuffle:
       if (length == 1) return current;
       // 在排除 current 的 length-1 个候选里均匀取
@@ -112,8 +114,11 @@ class PlayerService {
   int _queueIndex = -1;
   StreamSubscription<bool>? _completedSub;
 
-  PlayMode _mode = PlayMode.sequence;
+  PlayMode _mode = PlayMode.loopAll;
   PlayMode get mode => _mode;
+
+  /// 模式变更回调（main.dart 挂持久化到 shared_preferences）。
+  void Function(PlayMode mode)? onModeChanged;
 
   final _queueController = StreamController<List<QueueItem>>.broadcast();
   final _modeController = StreamController<PlayMode>.broadcast();
@@ -128,11 +133,27 @@ class PlayerService {
 
   void _emitQueue() => _queueController.add(List.unmodifiable(_queue));
 
-  /// 循环切换播放模式（顺序 → 单曲 → 随机）。
-  PlayMode cycleMode() {
-    _mode = PlayMode.values[(_mode.index + 1) % PlayMode.values.length];
+  /// 模式切换顺序：列表循环 → 单曲循环 → 随机 → 顺序（播完停）。
+  static const _modeCycle = [
+    PlayMode.loopAll,
+    PlayMode.single,
+    PlayMode.shuffle,
+    PlayMode.sequence,
+  ];
+
+  /// 直接设置播放模式（持久化恢复用）。
+  void setMode(PlayMode mode) {
+    if (mode == _mode) return;
+    _mode = mode;
     _modeController.add(_mode);
-    return _mode;
+    onModeChanged?.call(_mode);
+  }
+
+  /// 循环切换播放模式（列表循环 → 单曲 → 随机 → 顺序）。
+  PlayMode cycleMode() {
+    final next = _modeCycle[(_modeCycle.indexOf(_mode) + 1) % _modeCycle.length];
+    setMode(next);
+    return next;
   }
 
   /// 播放整个队列（歌单连续播放）：从 [startIndex] 开始，播完按模式自动切歌。

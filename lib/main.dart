@@ -86,6 +86,13 @@ Future<void> main() async {
   final playerService =
       PlayerService(proxy, ncmApi: NcmApi(ncmClient), qqApi: QqApi(qqClient));
 
+  // 播放模式持久化：启动恢复上次选择，切换时写回（默认列表循环）。
+  final prefs = await SharedPreferences.getInstance();
+  final savedMode = PlayMode.values.asNameMap()[prefs.getString('play_mode')];
+  if (savedMode != null) playerService.setMode(savedMode);
+  playerService.onModeChanged =
+      (mode) => prefs.setString('play_mode', mode.name);
+
   // 本地曲库（歌单/下载记录）与下载服务。
   final docsDir = await getApplicationDocumentsDirectory();
   final libraryDb = LibraryDatabase.file('${docsDir.path}/library.db');

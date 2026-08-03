@@ -61,22 +61,19 @@ class _TrackListPageState extends ConsumerState<TrackListPage> {
         coverUrl: widget.cover,
       );
 
-  /// 原地播放：同一首再点 = 暂停/继续；点其他行 = 切歌。
-  Future<void> _playOne(BiliVideoPage p) async {
+  /// 点击单首：整个合集进队列，从该首开始连播（配合默认列表循环）。
+  /// 同一首再点 = 暂停/继续。
+  Future<void> _playOne(List<BiliVideoPage> parts, int index) async {
     final player = ref.read(playerServiceProvider);
+    final p = parts[index];
     final cur = player.current;
     if (cur != null && cur.bvid == widget.bvid && cur.cid == p.cid) {
       await player.playOrPause();
       return;
     }
     try {
-      await player.playTrack(
-            bvid: widget.bvid,
-            cid: p.cid,
-            title: _trackTitle(p),
-            artist: widget.author,
-            coverUrl: widget.cover,
-          );
+      await player.playQueue([for (final x in parts) _queueItem(x)],
+          startIndex: index);
     } catch (e) {
       _toast('播放失败: $e');
     }
@@ -345,7 +342,7 @@ class _TrackListPageState extends ConsumerState<TrackListPage> {
                         showBadge: loggedIn,
                         isPlaying: isPlaying,
                         playingNow: playingNow,
-                        onPlay: () => _playOne(p),
+                        onPlay: () => _playOne(parts, i),
                         onEnqueue: () => _enqueueOne(p),
                         onDownload: () => _download(p),
                         onAddToPlaylist: () => showAddToPlaylistDialog(

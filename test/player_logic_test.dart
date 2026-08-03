@@ -64,6 +64,12 @@ void main() {
       expect(nextQueueIndex(current: 1, length: 3, mode: PlayMode.single), 1);
     });
 
+    test('列表循环：到队尾回卷到 0', () {
+      expect(nextQueueIndex(current: 0, length: 3, mode: PlayMode.loopAll), 1);
+      expect(nextQueueIndex(current: 2, length: 3, mode: PlayMode.loopAll), 0);
+      expect(nextQueueIndex(current: 0, length: 1, mode: PlayMode.loopAll), 0);
+    });
+
     test('随机模式：不重复当前，范围合法', () {
       // 注入确定性随机源：恒返回 0
       final idx = nextQueueIndex(

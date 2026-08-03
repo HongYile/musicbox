@@ -26,7 +26,7 @@ class PlayerHubBar extends ConsumerWidget {
     if (track == null) return const SizedBox.shrink();
 
     final playing = ref.watch(playingProvider).value ?? false;
-    final mode = ref.watch(playModeProvider).value ?? PlayMode.sequence;
+    final mode = ref.watch(playModeProvider).value ?? PlayMode.loopAll;
     final position = ref.watch(positionProvider).value ?? Duration.zero;
     final duration = ref.watch(durationProvider).value ?? Duration.zero;
     final player = ref.read(playerServiceProvider);
@@ -245,12 +245,14 @@ class PlayerHubBar extends ConsumerWidget {
   }
 
   IconData _modeIcon(PlayMode mode) => switch (mode) {
-        PlayMode.sequence => Icons.repeat,
+        PlayMode.loopAll => Icons.repeat,
+        PlayMode.sequence => Icons.arrow_right_alt,
         PlayMode.single => Icons.repeat_one,
         PlayMode.shuffle => Icons.shuffle,
       };
 
   String _modeLabel(PlayMode mode) => switch (mode) {
+        PlayMode.loopAll => '列表循环',
         PlayMode.sequence => '顺序播放',
         PlayMode.single => '单曲循环',
         PlayMode.shuffle => '随机播放',

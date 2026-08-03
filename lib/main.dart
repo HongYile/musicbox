@@ -176,11 +176,13 @@ Future<void> main() async {
             }
           });
 
-          // 启动后自动检查更新（静默，尊重"不再提醒此版本"）
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final ctx = navigatorKey.currentContext;
-            if (ctx != null) checkAndPromptUpdate(ctx);
-          });
+          // 启动后自动检查更新（仅桌面端有意义；iOS/Android 走侧载/商店渠道）
+          if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final ctx = navigatorKey.currentContext;
+              if (ctx != null) checkAndPromptUpdate(ctx);
+            });
+          }
           return const MusicboxApp();
         },
       ),

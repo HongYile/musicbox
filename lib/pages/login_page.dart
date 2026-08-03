@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 import 'dart:ui' show ImageFilter;
 
@@ -211,6 +212,36 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
   bool _success = false;
   QqQrStep? _phase; // 当前扫码阶段（待确认时模糊二维码）
   StreamSubscription<QqQrResult>? _sub;
+  final _cookieController = TextEditingController();
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _cookieController.dispose();
+    super.dispose();
+  }
+
+  /// 移动端 cookie 粘贴登录。
+  Future<void> _loginByCookie() async {
+    final raw = _cookieController.text.trim();
+    if (raw.isEmpty) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(qqClientProvider).importCookieString(raw);
+      final ok = await ref.read(qqAuthServiceProvider).isLoggedIn();
+      if (!mounted) return;
+      if (ok) {
+        ref.invalidate(qqLoginStateProvider);
+        setState(() => _message = '登录成功');
+      } else {
+        setState(() => _message = 'Cookie 无效或缺少 qqmusic_key');
+      }
+    } catch (e) {
+      if (mounted) setState(() => _message = '登录失败: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -312,13 +343,36 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
             child: const Text('退出登录'),
           ),
         ] else ...[
-          const Text('内嵌官方网页登录（扫码不稳定的账号也能用）',
-              style: TextStyle(color: Colors.grey, fontSize: 12)),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: _loginWebView,
-            child: const Text('登录 QQ 音乐（官方网页）'),
-          ),
+          if (Platform.isIOS || Platform.isAndroid) ...[
+            // desktop_webview_window 仅桌面端可用；移动端用 cookie 粘贴登录
+            const Text('移动端：在浏览器打开 y.qq.com 登录后，'
+                '从开发者工具复制整串 Cookie 粘贴到下方',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: 320,
+              child: TextField(
+                controller: _cookieController,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                    labelText: '粘贴 Cookie（含 qqmusic_key）', isDense: true),
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _busy ? null : _loginByCookie,
+              child: const Text('用 Cookie 登录'),
+            ),
+          ] else ...[
+            const Text('内嵌官方网页登录（扫码不稳定的账号也能用）',
+                style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _loginWebView,
+              child: const Text('登录 QQ 音乐（官方网页）'),
+            ),
+          ],
           if (_session != null) ...[
             const SizedBox(height: 10),
             _QrWithBlur(

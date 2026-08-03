@@ -166,3 +166,6 @@ flutter build macos --debug         # 需要完整 Xcode（CLT 不够）
 - Release 只保留最近 2 个版本，旧的定期删除（GitHub `gh release delete`、
   Gitee API DELETE），tags 可保留。
 - appsrc 的 sourceUpdateTime/appUpdateTime 必须随版本更新（GBox 靠它刷新）。
+- **Windows 便携 zip 两端都要挂**：tag 触发的 CI 只会自动挂 GitHub，
+  Gitee 需手动 attach（先从 CI artifact 或 GitHub asset 取 zip）。
+  zip 内已含 VC++ CRT，全新系统解压即用。

@@ -5,7 +5,7 @@
   "sourceLinkTitle": "主页",
   "sourceLinkUrl": "https://github.com/HongYile/unison",
   "sourceImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-  "sourceUpdateTime": "2026-08-03T11:00:00+0800",
+  "sourceUpdateTime": "2026-08-03T11:20:00+0800",
   "sourceDescription": "聚合音乐播放器：B站 Hi-Res 无损 / QQ音乐 / 换源试听 / 歌单下载 / 坚果云同步。个人自用，仅使用自己账号权益。",
   "appCategories": [
     "音乐"
@@ -14,7 +14,7 @@
     {
       "appType": "SELF_SIGN",
       "appCateIndex": 0,
-      "appUpdateTime": "2026-08-03T10:30:00+0800",
+      "appUpdateTime": "2026-08-03T11:20:00+0800",
       "appName": "Unison",
       "appVersion": "0.2.1",
       "appImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",

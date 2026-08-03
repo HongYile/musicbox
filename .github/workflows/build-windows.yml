@@ -13,7 +13,9 @@ permissions:
 
 jobs:
   windows:
-    runs-on: windows-latest
+    # 固定 windows-2022：windows-latest 已换装 VS18（MSVC 14.51），
+    # 对老插件的实验性协程头直接报错；钉住镜像保证构建可复现。
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 

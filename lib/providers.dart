@@ -24,6 +24,7 @@ import 'services/sources/netease/netease_source.dart';
 import 'services/sources/qqmusic/api/qq_client.dart';
 import 'services/sources/qqmusic/api/qq_endpoints.dart';
 import 'services/sources/qqmusic/qqmusic_source.dart';
+import 'services/sources/quality_preference.dart';
 import 'services/sync/library_sync.dart';
 import 'services/sync/sync_crypto.dart';
 import 'services/sync/webdav_client.dart';
@@ -202,6 +203,10 @@ class AiConfigController extends StateNotifier<AiConfig> {
 final aiTitleServiceProvider = Provider<AiTitleService>(
   (ref) => AiTitleService(() => ref.read(aiConfigProvider)),
 );
+
+/// 音质偏好（界面开关；实际读 QualityPreference.current）。
+final qualityPrefProvider = StateProvider<String>(
+    (ref) => QualityPreference.current);
 
 /// 当前选中的音源 id（'bilibili' / 'netease'）。
 final selectedSourceProvider = StateProvider<String>((ref) => 'bilibili');

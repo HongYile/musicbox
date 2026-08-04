@@ -656,24 +656,61 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (isCurrent)
-                      Text.rich(
-                        TextSpan(children: [
-                          for (final w in line.words)
-                            TextSpan(
-                              text: w.text,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                // 到字变色：已过片为主色，未到为灰
-                                color: position.inMilliseconds >= w.startMs
-                                    ? primary
-                                    : Colors.grey,
+                      line.words.length > 1
+                          // 真逐字：到字变色
+                          ? Text.rich(
+                              TextSpan(children: [
+                                for (final w in line.words)
+                                  TextSpan(
+                                    text: w.text,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: position.inMilliseconds >=
+                                              w.startMs
+                                          ? primary
+                                          : Colors.grey,
+                                    ),
+                                  ),
+                              ]),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            )
+                          // 无逐字时间戳（qrc=0）：行级线性扫色
+                          : ShaderMask(
+                              blendMode: BlendMode.srcIn,
+                              shaderCallback: (rect) {
+                                final f = line.durMs > 0
+                                    ? ((position.inMilliseconds -
+                                                line.startMs) /
+                                            line.durMs)
+                                        .clamp(0.0, 1.0)
+                                    : 1.0;
+                                return LinearGradient(
+                                  colors: [
+                                    primary,
+                                    primary,
+                                    Colors.grey,
+                                    Colors.grey
+                                  ],
+                                  stops: [
+                                    0.0,
+                                    f,
+                                    (f + 0.04).clamp(0.0, 1.0),
+                                    1.0
+                                  ],
+                                ).createShader(rect);
+                              },
+                              child: Text(
+                                line.text.isEmpty ? '·' : line.text,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white),
                               ),
-                            ),
-                        ]),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      )
+                            )
                     else
                       Text(
                         line.text.isEmpty ? '·' : line.text,

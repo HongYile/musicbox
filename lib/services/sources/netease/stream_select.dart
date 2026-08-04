@@ -4,6 +4,7 @@
 /// 命中可播放（url 非空且非试听）即返回；全部不可播抛 [NcmStreamSelectException]。
 library;
 
+import '../quality_preference.dart';
 import '../bilibili/stream_select.dart';
 import 'models.dart';
 
@@ -15,10 +16,16 @@ class NcmStreamSelectException implements Exception {
 }
 
 /// 按降级链取流。[fetch] 即 `NcmApi.songUrlV1`（测试可注入假实现）。
+/// [chain] 默认按全局音质偏好过滤（320K 跳过无损档、128K 只留 standard）。
 Future<NcmSongUrl> selectNcmSongUrl(
   Future<NcmSongUrl> Function(String level) fetch, {
-  List<String> chain = NcmLevel.fallbackChain,
+  List<String>? chain,
 }) async {
+  chain ??= switch (QualityPreference.current) {
+    '320k' => const [NcmLevel.exhigh, NcmLevel.standard],
+    '128k' => const [NcmLevel.standard],
+    _ => NcmLevel.fallbackChain,
+  };
   NcmSongUrl? last;
   for (final level in chain) {
     final info = await fetch(level);

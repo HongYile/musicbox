@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 import '../providers.dart';
 import '../services/ai/ai_title_service.dart';
 import '../services/auth/web_login_page.dart';
+import '../services/sources/quality_preference.dart';
 import '../widgets/glass_card.dart';
 import '../services/sources/bilibili/models.dart';
 import '../services/sources/qqmusic/api/qq_login.dart';
@@ -150,6 +151,33 @@ class LoginPage extends ConsumerWidget {
                     selected: {ref.watch(themeModeProvider)},
                     onSelectionChanged: (s) =>
                         ref.read(themeModeProvider.notifier).set(s.first),
+                  ),
+                ],
+              ),
+              const Divider(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Tooltip(
+                    message: '无损需绿钻/大会员；无权限时自动降到可用最高档',
+                    child: Text('音质偏好',
+                        style: Theme.of(context).textTheme.bodyMedium),
+                  ),
+                  SegmentedButton<String>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(value: 'lossless', label: Text('无损优先')),
+                      ButtonSegment(value: '320k', label: Text('320K')),
+                      ButtonSegment(value: '128k', label: Text('128K')),
+                    ],
+                    selected: {ref.watch(qualityPrefProvider)},
+                    onSelectionChanged: (s) {
+                      final v = s.first;
+                      QualityPreference.current = v;
+                      ref.read(qualityPrefProvider.notifier).state = v;
+                      SharedPreferences.getInstance().then(
+                          (p) => p.setString('app_quality', v));
+                    },
                   ),
                 ],
               ),
@@ -745,8 +773,11 @@ class _AiCardState extends ConsumerState<_AiCard> {
   final _keyCtrl = TextEditingController();
   final _urlCtrl = TextEditingController();
   final _modelCtrl = TextEditingController();
-  bool _loaded = false;
   bool _saved = false;
+
+  /// 已回填的配置签名（apiKey|baseUrl|model）——
+  /// 坚果云拉取到 AI 配置后 state 变化，这里随之重新填充。
+  String _filledSig = '';
 
   @override
   void dispose() {
@@ -757,12 +788,17 @@ class _AiCardState extends ConsumerState<_AiCard> {
   }
 
   void _fill(AiConfig cfg) {
-    if (_loaded) return;
-    _loaded = true;
+    final sig = '${cfg.apiKey}|${cfg.baseUrl}|${cfg.model}';
+    if (sig == _filledSig) return;
+    _filledSig = sig;
     _keyCtrl.text = cfg.apiKey;
     _urlCtrl.text = cfg.baseUrl;
     _modelCtrl.text = cfg.model;
   }
+
+  /// sk-****** 掩码（保留前 7 位，便于确认是哪把 Key）。
+  String _mask(String v) =>
+      v.length <= 7 ? v : '${v.substring(0, 7)}••••••';
 
   @override
   Widget build(BuildContext context) {
@@ -839,8 +875,11 @@ class _AiCardState extends ConsumerState<_AiCard> {
             ),
             const SizedBox(width: 12),
             if (cfg.configured)
-              const Text('已配置，换源试听将使用 AI 提炼歌名',
-                  style: TextStyle(fontSize: 12, color: Colors.green))
+              Flexible(
+                child: Text('已保存：${_mask(cfg.apiKey)}（换源用 AI 提炼歌名）',
+                    style:
+                        const TextStyle(fontSize: 12, color: Colors.green)),
+              )
             else
               const Text('未配置，换源用规则清洗标题',
                   style: TextStyle(fontSize: 12, color: Colors.grey)),

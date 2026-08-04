@@ -28,6 +28,7 @@ import 'services/sources/bilibili/api/client.dart';
 import 'services/sources/bilibili/api/endpoints.dart';
 import 'services/sources/netease/api/ncm_client.dart';
 import 'services/sources/netease/api/ncm_endpoints.dart';
+import 'services/sources/quality_preference.dart';
 import 'services/sources/qqmusic/api/qq_client.dart';
 import 'services/sources/qqmusic/api/qq_endpoints.dart';
 import 'services/sync/webdav_client.dart';
@@ -35,6 +36,38 @@ import 'services/update/update_prompt.dart';
 
 /// 全局导航 key（应用内更新弹窗用）。
 final navigatorKey = GlobalKey<NavigatorState>();
+
+/// 右上角轻提示（播放失败等），3 秒自动消失。
+void showTopToast(String message) {
+  final ctx = navigatorKey.currentContext;
+  if (ctx == null) return;
+  final overlay = Overlay.of(ctx);
+  late OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (context) => Positioned(
+      top: 16,
+      right: 16,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 380),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xF0333333),
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 12)
+            ],
+          ),
+          child: Text(message,
+              style: const TextStyle(color: Colors.white, fontSize: 12)),
+        ),
+      ),
+    ),
+  );
+  overlay.insert(entry);
+  Timer(const Duration(seconds: 3), entry.remove);
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -162,6 +195,9 @@ Future<void> _bootstrap() async {
   playerService.onModeChanged =
       (mode) => prefs.setString('play_mode', mode.name);
 
+  // 音质偏好（默认无损优先）。
+  QualityPreference.current = prefs.getString('app_quality') ?? 'lossless';
+
   // 本地曲库（歌单/下载记录）与下载服务。
   final docsDir = await getApplicationDocumentsDirectory();
   final libraryDb = LibraryDatabase.file('${docsDir.path}/library.db');
@@ -251,6 +287,9 @@ Future<void> _bootstrap() async {
               container.read(syncServiceProvider).pushDebounced();
             }
           });
+
+          // 播放失败 → 右上角提示（自动跳下一首由播放器负责）
+          container.read(playerServiceProvider).errorStream.listen(showTopToast);
 
           // 启动后自动检查更新（各端都查；移动端弹窗引导去 GBox/下载页）
           WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -123,6 +123,19 @@ class PlayerService {
   final _queueController = StreamController<List<QueueItem>>.broadcast();
   final _modeController = StreamController<PlayMode>.broadcast();
 
+  /// 播放失败通知流（UI 弹右上角提示）。
+  final _errorController = StreamController<String>.broadcast();
+  Stream<String> get errorStream => _errorController.stream;
+
+  /// 当前首解析/播放失败：发通知，1 秒后由调用方继续跳下一首。
+  void _notifyPlayError(Object e) {
+    final t =
+        _queueIndex >= 0 && _queueIndex < _queue.length ? _queue[_queueIndex] : null;
+    final reason = e.toString().replaceAll(RegExp(r'^[A-Za-z]+: '), '');
+    _errorController
+        .add('无法播放「${t?.title ?? '未知曲目'}」：$reason（1 秒后自动下一首）');
+  }
+
   /// 队列变更流（歌单连播/移除条目时更新）。
   Stream<List<QueueItem>> get queueStream => _queueController.stream;
   Stream<PlayMode> get modeStream => _modeController.stream;
@@ -187,8 +200,10 @@ class PlayerService {
     _queueIndex = idx;
     try {
       await _playItem(_queue[_queueIndex]);
-    } catch (_) {
-      await _onCompleted(); // 单首失败不中断，继续往下
+    } catch (e) {
+      _notifyPlayError(e);
+      await Future<void>.delayed(const Duration(seconds: 1));
+      await _onCompleted(); // 单首失败不中断，1 秒后继续往下
     }
   }
 
@@ -203,7 +218,9 @@ class PlayerService {
     _queueIndex = idx;
     try {
       await _playItem(_queue[_queueIndex]);
-    } catch (_) {
+    } catch (e) {
+      _notifyPlayError(e);
+      await Future<void>.delayed(const Duration(seconds: 1));
       // 单首失败不中断队列，继续往下
       await next();
     }
@@ -451,5 +468,6 @@ class PlayerService {
     await _currentTrackController.close();
     await _queueController.close();
     await _modeController.close();
+    await _errorController.close();
   }
 }

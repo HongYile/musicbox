@@ -3,7 +3,12 @@
 /// 降级链：dash.flac.audio(Hi-Res 30251) → dash.dolby.audio[0](30250)
 ///   → dash.audio 按 bandwidth 降序 + 音质 id 表次序择优。
 /// backup_url 中 host 含 `upos-sz-` 的优先于 mcdn。
+///
+/// 全局音质偏好（QualityPreference）设置上限时：跳过无损/杜比，
+/// 在不超过上限的普通流里选最优；没有低于上限的则选最低档。
 library;
+
+import '../quality_preference.dart';
 
 /// 音质 id → 展示名（含网易云 991xx 自建段位）。
 const Map<int, String> kAudioQualityLabels = {
@@ -144,6 +149,32 @@ StreamChoice selectAudioStream(Map<String, dynamic> playurlData) {
   final dash = playurlData['dash'] as Map<String, dynamic>?;
   if (dash == null) {
     throw StreamSelectException('响应中没有 dash 流信息');
+  }
+
+  // 音质偏好上限：跳过无损/杜比，普通流里选不超过上限的最优
+  final capId = QualityPreference.biliCapId;
+  if (capId > 0) {
+    final audios = (dash['audio'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    if (audios.isEmpty) {
+      throw StreamSelectException('dash 中没有任何音频流');
+    }
+    int rankOf(Map<String, dynamic> a) =>
+        kAudioQualityOrder.indexOf((a['id'] as num?)?.toInt() ?? 0);
+    final capped = audios.where((a) {
+      final idx = rankOf(a);
+      return idx >= 0 && idx <= kAudioQualityOrder.indexOf(capId);
+    }).toList();
+    // 没有低于上限的档位时选最低档（保证能播）
+    final pool = capped.isEmpty ? audios : capped;
+    pool.sort((a, b) {
+      final bwA = (a['bandwidth'] as num?)?.toInt() ?? 0;
+      final bwB = (b['bandwidth'] as num?)?.toInt() ?? 0;
+      if (bwA != bwB) return bwB.compareTo(bwA);
+      return rankOf(b).compareTo(rankOf(a)); // 同码率音质高者在前
+    });
+    // capped 模式取最高，兜底模式（全超上限）取最低
+    final pick = capped.isEmpty ? pool.last : pool.first;
+    return _choiceFromAudio(pick, isLossless: false, isDolby: false);
   }
 
   // 1) Hi-Res 无损

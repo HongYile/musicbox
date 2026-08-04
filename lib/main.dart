@@ -38,6 +38,75 @@ final navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await _bootstrap();
+  } catch (e, st) {
+    // 启动即崩（缺组件/端口占用/存储失败等）以前是无声退出的"闪一下就没"，
+    // 现在落日志 + 显示错误窗口，可直接定位。
+    await _writeStartupCrash(e, st);
+    runApp(_StartupErrorApp(error: '$e'));
+  }
+}
+
+/// 启动崩溃日志：优先写到 exe 同目录（便携包可读写），失败退到临时目录。
+Future<void> _writeStartupCrash(Object error, StackTrace stack) async {
+  final content = 'Unison 启动失败\n'
+      '时间: ${DateTime.now()}\n'
+      '系统: ${Platform.operatingSystem} ${Platform.operatingSystemVersion}\n'
+      '错误: $error\n\n$stack\n';
+  final sep = Platform.pathSeparator;
+  final paths = [
+    '${File(Platform.resolvedExecutable).parent.path}${sep}unison_startup_error.log',
+    '${Directory.systemTemp.path}${sep}unison_startup_error.log',
+  ];
+  for (final p in paths) {
+    try {
+      await File(p).writeAsString(content);
+      return;
+    } catch (_) {}
+  }
+}
+
+/// 启动失败兜底窗口：让用户看到错误而不是无声闪退。
+class _StartupErrorApp extends StatelessWidget {
+  const _StartupErrorApp({required this.error});
+
+  final String error;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Unison',
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text('启动失败',
+                    style:
+                        TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                SelectableText(error, textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                const Text(
+                    '详细日志已写入程序目录下的 unison_startup_error.log，'
+                    '请把它发给开发者。',
+                    style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _bootstrap() async {
   MediaKit.ensureInitialized();
 
   // cookie 持久化目录（应用支持目录/cookies）

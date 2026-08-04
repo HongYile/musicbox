@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -129,9 +130,12 @@ class _WebLoginPageState extends State<WebLoginPage> {
       body: InAppWebView(
         initialUrlRequest: URLRequest(url: WebUri(widget.loginUrl)),
         initialSettings: InAppWebViewSettings(
-          // 桌面 UA：移动版页面常隐藏"登录"入口（尤其 y.qq.com / B站）
-          userAgent:
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+          // UA 按平台区分：桌面端用桌面 UA（移动版官网常藏登录入口）；
+          // 手机端必须用手机 UA——ptlogin 返回手机版登录页
+          // （快捷登录/短信验证），桌面页在手机上会缩成小块且二维码加载失败。
+          userAgent: Platform.isIOS || Platform.isAndroid
+              ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+              : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         ),
       ),
     );

@@ -184,14 +184,40 @@ class LibraryDatabase {
       )''');
     // 修复脏数据：播放页加歌单曾把 CurrentTrack.bvid 的前缀（qq:/ncm:）
     // 原样入库且 source_id 记成 bilibili，导致播放时按 B站查 pagelist 报 -400。
-    _db.execute('''
-      UPDATE playlist_tracks SET source_id = 'qqmusic',
-        track_id = substr(track_id, 4)
-      WHERE source_id = 'bilibili' AND track_id LIKE 'qq:%' ''');
-    _db.execute('''
-      UPDATE playlist_tracks SET source_id = 'netease',
-        track_id = substr(track_id, 5)
-      WHERE source_id = 'bilibili' AND track_id LIKE 'ncm:%' ''');
+    // 注意：同步合并后同一首歌可能同时存在合法行与脏行，
+    // 直接 UPDATE 会撞 UNIQUE 约束——先删冲突的脏行，再改写剩余的。
+    try {
+      _db.execute('''
+        DELETE FROM playlist_tracks
+        WHERE source_id = 'bilibili' AND track_id LIKE 'qq:%'
+          AND EXISTS (
+            SELECT 1 FROM playlist_tracks t2
+            WHERE t2.playlist_id = playlist_tracks.playlist_id
+              AND t2.source_id = 'qqmusic'
+              AND t2.track_id = substr(playlist_tracks.track_id, 4)
+              AND t2.cid = playlist_tracks.cid
+          )''');
+      _db.execute('''
+        UPDATE playlist_tracks SET source_id = 'qqmusic',
+          track_id = substr(track_id, 4)
+        WHERE source_id = 'bilibili' AND track_id LIKE 'qq:%' ''');
+      _db.execute('''
+        DELETE FROM playlist_tracks
+        WHERE source_id = 'bilibili' AND track_id LIKE 'ncm:%'
+          AND EXISTS (
+            SELECT 1 FROM playlist_tracks t2
+            WHERE t2.playlist_id = playlist_tracks.playlist_id
+              AND t2.source_id = 'netease'
+              AND t2.track_id = substr(playlist_tracks.track_id, 5)
+              AND t2.cid = playlist_tracks.cid
+          )''');
+      _db.execute('''
+        UPDATE playlist_tracks SET source_id = 'netease',
+          track_id = substr(track_id, 5)
+        WHERE source_id = 'bilibili' AND track_id LIKE 'ncm:%' ''');
+    } catch (_) {
+      // 清理失败不阻塞启动（播放端已有跳过容错）
+    }
   }
 
   static int _now() => DateTime.now().millisecondsSinceEpoch;

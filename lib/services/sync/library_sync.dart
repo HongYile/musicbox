@@ -96,10 +96,21 @@ class LibrarySyncService {
       count++;
       final tracks = (p['tracks'] as List? ?? const []);
       for (final t in tracks.whereType<Map>()) {
+        var sourceId = (t['sourceId'] ?? 'bilibili') as String;
+        var trackId = (t['trackId'] ?? '') as String;
+        // 历史脏数据规整：老版本把 qq:/ncm: 前缀 id 记成 bilibili；
+        // 不拦的话每次拉取都会把它们重新注入本地库。
+        if (sourceId == 'bilibili' && trackId.startsWith('qq:')) {
+          sourceId = 'qqmusic';
+          trackId = trackId.substring(3);
+        } else if (sourceId == 'bilibili' && trackId.startsWith('ncm:')) {
+          sourceId = 'netease';
+          trackId = trackId.substring(4);
+        }
         _db.addTrack(
           playlistId: playlistId,
-          sourceId: (t['sourceId'] ?? 'bilibili') as String,
-          trackId: (t['trackId'] ?? '') as String,
+          sourceId: sourceId,
+          trackId: trackId,
           title: (t['title'] ?? '') as String,
           artist: (t['artist'] ?? '') as String,
           cover: (t['cover'] ?? '') as String,

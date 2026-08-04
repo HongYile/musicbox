@@ -171,6 +171,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               // 已登录则切换：当前关键词自动在新音源重搜
               final kw = _controller.text.trim();
               if (kw.isNotEmpty) {
+                if (_scroll.hasClients) _scroll.jumpTo(0);
                 ref.read(searchResultsProvider.notifier).search(kw);
               }
             },
@@ -201,8 +202,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     )
                   : null,
             ),
-            onSubmitted: (kw) =>
-                ref.read(searchResultsProvider.notifier).search(kw),
+            onSubmitted: (kw) {
+              if (_scroll.hasClients) _scroll.jumpTo(0);
+              ref.read(searchResultsProvider.notifier).search(kw);
+            },
           ),
         ),
         Expanded(
@@ -212,6 +215,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             data: (list) => list.isEmpty
                 ? const Center(child: Text('输入关键词开始搜索'))
                 : ListView.builder(
+                    // PageStorageKey：内嵌曲目列表来回切换后保持滚动位置
+                    key: const PageStorageKey('search-results'),
                     controller: _scroll,
                     itemCount: list.length + 1,
                     itemBuilder: (context, i) {

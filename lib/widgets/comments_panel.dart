@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers.dart';
 import '../services/player/player_service.dart';
+import '../services/sources/bilibili/models.dart' show BiliComment;
+import '../services/sources/qqmusic/models.dart' show QqComment;
 
 /// 评论面板：B站（bvid→aid→reply）/ QQ音乐（songmid→songid→comment）。
 ///
-/// 滚动到底自动续页；由外层包裹渐变遮罩与滚动条隐藏。
+/// 滚动到底自动续页；B站楼中楼可展开/收起、分页加载（B站客户端风格）。
+/// 由外层包裹渐变遮罩与滚动条隐藏。
 class CommentsPanel extends ConsumerStatefulWidget {
   const CommentsPanel({super.key, required this.track});
 
@@ -19,6 +22,7 @@ class CommentsPanel extends ConsumerStatefulWidget {
 
 class _CommentItem {
   const _CommentItem({
+    required this.rpid,
     required this.author,
     required this.avatar,
     required this.message,
@@ -28,6 +32,7 @@ class _CommentItem {
     this.subReplies = const [],
   });
 
+  final int rpid;
   final String author;
   final String avatar;
   final String message;
@@ -38,6 +43,9 @@ class _CommentItem {
   /// 楼中楼预览（B站接口自带，最多 3 条）。
   final List<_CommentItem> subReplies;
 }
+
+/// 楼中楼一页。
+typedef SubReplyPage = ({List<_CommentItem> items, bool isEnd});
 
 class _CommentsPanelState extends ConsumerState<CommentsPanel> {
   final _scroll = ScrollController();
@@ -98,6 +106,28 @@ class _CommentsPanelState extends ConsumerState<CommentsPanel> {
     _loadMore();
   }
 
+  _CommentItem _biliItem(BiliComment c, {List<_CommentItem>? subs}) =>
+      _CommentItem(
+        rpid: c.rpid,
+        author: c.author,
+        avatar: c.avatar,
+        message: c.message,
+        like: c.like,
+        timeSec: c.timeSec,
+        replyCount: c.replyCount,
+        subReplies:
+            subs ?? [for (final s in c.subReplies) _biliItem(s, subs: const [])],
+      );
+
+  _CommentItem _qqItem(QqComment c) => _CommentItem(
+        rpid: 0,
+        author: c.author,
+        avatar: c.avatar,
+        message: c.message,
+        like: c.like,
+        timeSec: c.timeSec,
+      );
+
   Future<void> _loadMore() async {
     if (_targetId == null || _source == null) return;
     setState(() => _loading = true);
@@ -105,42 +135,13 @@ class _CommentsPanelState extends ConsumerState<CommentsPanel> {
       if (_source == 'bilibili') {
         final page =
             await ref.read(biliApiProvider).replies(_targetId!, pn: _page);
-        _items.addAll([
-          for (final c in page.items)
-            _CommentItem(
-              author: c.author,
-              avatar: c.avatar,
-              message: c.message,
-              like: c.like,
-              timeSec: c.timeSec,
-              replyCount: c.replyCount,
-              subReplies: [
-                for (final s in c.subReplies)
-                  _CommentItem(
-                    author: s.author,
-                    avatar: s.avatar,
-                    message: s.message,
-                    like: s.like,
-                    timeSec: s.timeSec,
-                  ),
-              ],
-            ),
-        ]);
+        _items.addAll([for (final c in page.items) _biliItem(c)]);
         _isEnd = page.isEnd;
       } else {
         final page = await ref
             .read(qqApiProvider)
             .comments(_targetId!, page: _page - 1);
-        _items.addAll([
-          for (final c in page.items)
-            _CommentItem(
-              author: c.author,
-              avatar: c.avatar,
-              message: c.message,
-              like: c.like,
-              timeSec: c.timeSec,
-            ),
-        ]);
+        _items.addAll([for (final c in page.items) _qqItem(c)]);
         _isEnd = page.isEnd;
       }
       _page++;
@@ -151,11 +152,18 @@ class _CommentsPanelState extends ConsumerState<CommentsPanel> {
     }
   }
 
-  String _fmtTime(int sec) {
-    if (sec <= 0) return '';
-    final d = DateTime.fromMillisecondsSinceEpoch(sec * 1000);
-    return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
-        '${d.day.toString().padLeft(2, '0')}';
+  /// B站楼中楼分页加载器（仅 bilibili 源有）。
+  Future<SubReplyPage> Function(int rootRpid, int page)? get _subLoader {
+    if (_source != 'bilibili') return null;
+    return (rootRpid, page) async {
+      final r = await ref
+          .read(biliApiProvider)
+          .subReplies(_targetId!, rootRpid, pn: page);
+      return (
+        items: [for (final c in r.items) _biliItem(c, subs: const [])],
+        isEnd: r.isEnd,
+      );
+    };
   }
 
   @override
@@ -190,123 +198,232 @@ class _CommentsPanelState extends ConsumerState<CommentsPanel> {
                     style: const TextStyle(color: Colors.grey, fontSize: 12))),
           );
         }
-        final c = _items[i];
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundImage: c.avatar.isNotEmpty
-                    ? CachedNetworkImageProvider(c.avatar)
-                    : null,
-                child: c.avatar.isEmpty ? const Icon(Icons.person, size: 16) : null,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        return _CommentTile(
+          key: ValueKey(_items[i].rpid),
+          comment: _items[i],
+          subLoader: _subLoader,
+        );
+      },
+    );
+  }
+}
+
+/// 单条评论：长文折叠展开 + 楼中楼预览/展开/分页/收起。
+class _CommentTile extends StatefulWidget {
+  const _CommentTile({super.key, required this.comment, this.subLoader});
+
+  final _CommentItem comment;
+
+  /// 楼中楼分页加载（rootRpid, page）；null 表示该源不支持。
+  final Future<SubReplyPage> Function(int rootRpid, int page)? subLoader;
+
+  @override
+  State<_CommentTile> createState() => _CommentTileState();
+}
+
+class _CommentTileState extends State<_CommentTile> {
+  bool _expanded = false;
+  late List<_CommentItem> _subs = widget.comment.subReplies;
+  int _page = 0; // 已加载的楼中楼页数（预览不算）
+  bool _loadingSubs = false;
+  bool _subsEnd = false;
+
+  String _fmtTime(int sec) {
+    if (sec <= 0) return '';
+    final d = DateTime.fromMillisecondsSinceEpoch(sec * 1000);
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _expand() async {
+    setState(() => _expanded = true);
+    // 首次展开：拉第 1 页（10 条）替换预览，分页更完整
+    if (_page == 0) await _loadMoreSubs();
+  }
+
+  Future<void> _loadMoreSubs() async {
+    final loader = widget.subLoader;
+    if (loader == null || _loadingSubs || _subsEnd) return;
+    setState(() => _loadingSubs = true);
+    try {
+      final r = await loader(widget.comment.rpid, _page + 1);
+      if (!mounted) return;
+      setState(() {
+        _page++;
+        if (_page == 1) {
+          _subs = r.items;
+        } else {
+          _subs = [..._subs, ...r.items];
+        }
+        _subsEnd = r.isEnd;
+      });
+    } catch (_) {
+      // 失败保留现状，可再点
+    } finally {
+      if (mounted) setState(() => _loadingSubs = false);
+    }
+  }
+
+  void _collapse() => setState(() => _expanded = false);
+
+  Widget _subLine(_CommentItem s, {required bool ellipsize}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Text.rich(
+        TextSpan(children: [
+          TextSpan(
+              text: '${s.author}：',
+              style: TextStyle(
+                  fontSize: 12, color: Theme.of(context).colorScheme.primary)),
+          TextSpan(text: s.message, style: const TextStyle(fontSize: 12)),
+        ]),
+        maxLines: ellipsize ? 2 : null,
+        overflow: ellipsize ? TextOverflow.ellipsis : null,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.comment;
+    final hasSubs = c.replyCount > 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundImage: c.avatar.isNotEmpty
+                ? CachedNetworkImageProvider(c.avatar)
+                : null,
+            child: c.avatar.isEmpty ? const Icon(Icons.person, size: 16) : null,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(c.author,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.color)),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(_fmtTime(c.timeSec),
-                            style: const TextStyle(
-                                fontSize: 11, color: Colors.grey)),
-                      ],
+                    Flexible(
+                      child: Text(c.author,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.color)),
                     ),
-                    const SizedBox(height: 3),
-                    _ExpandableText(
-                        text: c.message,
-                        style: const TextStyle(fontSize: 13)),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        const Icon(Icons.thumb_up_alt_outlined,
-                            size: 12, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Text('${c.like}',
-                            style: const TextStyle(
-                                fontSize: 11, color: Colors.grey)),
-                        if (c.replyCount > 0) ...[
-                          const SizedBox(width: 12),
-                          const Icon(Icons.chat_bubble_outline,
-                              size: 12, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Text('${c.replyCount}',
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.grey)),
-                        ],
-                      ],
+                    const SizedBox(width: 8),
+                    Text(_fmtTime(c.timeSec),
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey)),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                _ExpandableText(
+                    text: c.message, style: const TextStyle(fontSize: 13)),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    const Icon(Icons.thumb_up_alt_outlined,
+                        size: 12, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text('${c.like}',
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey)),
+                    if (hasSubs) ...[
+                      const SizedBox(width: 12),
+                      const Icon(Icons.chat_bubble_outline,
+                          size: 12, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text('${c.replyCount}',
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.grey)),
+                    ],
+                  ],
+                ),
+                // 楼中楼：B站风格灰底缩进
+                if (hasSubs)
+                  Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    // 楼中楼预览（最多 3 条，B站风格灰底缩进）
-                    if (c.subReplies.isNotEmpty)
-                      Container(
-                        margin: const EdgeInsets.only(top: 6),
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (final s in c.subReplies)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 2),
-                                child: Text.rich(
-                                  TextSpan(children: [
-                                    TextSpan(
-                                        text: '${s.author}：',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary)),
-                                    TextSpan(
-                                        text: s.message,
-                                        style: const TextStyle(fontSize: 12)),
-                                  ]),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            if (c.replyCount > c.subReplies.length)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: Text('共 ${c.replyCount} 条回复',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final s
+                            in _expanded ? _subs : _subs.take(3).toList())
+                          _subLine(s, ellipsize: !_expanded),
+                        // 底部操作行：展开/加载更多/收起
+                        if (!_expanded &&
+                            c.replyCount > _subs.take(3).length)
+                          GestureDetector(
+                            onTap:
+                                widget.subLoader != null ? _expand : null,
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text('共 ${c.replyCount} 条回复 ›',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary)),
+                            ),
+                          ),
+                        if (_expanded)
+                          Row(
+                            children: [
+                              if (_loadingSubs)
+                                const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 1.5))
+                              else if (!_subsEnd &&
+                                  widget.subLoader != null)
+                                GestureDetector(
+                                  onTap: _loadMoreSubs,
+                                  child: Text('加载更多',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary)),
+                                )
+                              else
+                                const Text('到底了',
+                                    style: TextStyle(
+                                        fontSize: 11, color: Colors.grey)),
+                              const SizedBox(width: 16),
+                              GestureDetector(
+                                onTap: _collapse,
+                                child: Text('收起',
                                     style: TextStyle(
                                         fontSize: 11,
                                         color: Theme.of(context)
                                             .colorScheme
                                             .primary)),
                               ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

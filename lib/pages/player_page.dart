@@ -33,6 +33,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     with SingleTickerProviderStateMixin {
   /// 右侧面板：0 歌词 / 1 评论。
   int _panelTab = 0;
+
+  /// 上次计算默认面板的曲目（同一首内用户手动切换不被覆盖）。
+  String _panelTrackKey = '';
   List<LrcLine> _lyricLines = const [];
   String _lyricKey = '';
   final _lyricScroll = ScrollController();
@@ -119,6 +122,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     final player = ref.read(playerServiceProvider);
 
     _loadLyrics(track);
+
+    // 新曲目的默认面板：B站（BV 开头）基本匹配不到歌词 → 默认评论；
+    // 其余源默认歌词。仅在切歌时设定，用户手动切换不覆盖。
+    final trackKey = '${track.bvid}:${track.cid}';
+    if (trackKey != _panelTrackKey) {
+      _panelTrackKey = trackKey;
+      _panelTab = track.bvid.startsWith('BV') ? 1 : 0;
+    }
 
     return Stack(
       children: [

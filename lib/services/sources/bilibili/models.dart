@@ -130,6 +130,7 @@ class BiliFavPage {
 /// 视频评论区单条（x/v2/reply）。
 class BiliComment {
   const BiliComment({
+    required this.rpid,
     required this.author,
     required this.avatar,
     required this.message,
@@ -139,6 +140,8 @@ class BiliComment {
     this.subReplies = const [],
   });
 
+  /// 评论 id（拉楼中楼时作 root 参数）。
+  final int rpid;
   final String author;
   final String avatar;
   final String message;
@@ -157,6 +160,7 @@ class BiliComment {
         (json['content'] as Map?)?.cast<String, dynamic>() ?? const {};
     final subs = (json['replies'] as List?) ?? const [];
     return BiliComment(
+      rpid: (json['rpid'] as num?)?.toInt() ?? 0,
       author: (member['uname'] ?? '') as String,
       avatar: (member['avatar'] ?? '') as String,
       message: (content['message'] ?? '') as String,

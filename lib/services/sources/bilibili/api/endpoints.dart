@@ -221,4 +221,29 @@ class BiliApi {
       isEnd: cursor['is_end'] == true || list.isEmpty,
     );
   }
+
+  /// 楼中楼回复分页（root=主评论 rpid）。
+  Future<BiliCommentPage> subReplies(int aid, int rootRpid,
+      {int pn = 1, int ps = 10}) async {
+    final resp = await client.api.get<Map<String, dynamic>>(
+      '/x/v2/reply/reply',
+      queryParameters: {
+        'type': 1,
+        'oid': aid,
+        'root': rootRpid,
+        'pn': pn,
+        'ps': ps,
+      },
+    );
+    final data = _expectMap(resp.data!, 'reply/reply');
+    final list = (data['replies'] as List?) ?? const [];
+    final page = (data['page'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final count = (page['count'] as num?)?.toInt() ?? 0;
+    return BiliCommentPage(
+      items: list
+          .map((e) => BiliComment.fromJson((e as Map).cast<String, dynamic>()))
+          .toList(),
+      isEnd: list.isEmpty || pn * ps >= count,
+    );
+  }
 }

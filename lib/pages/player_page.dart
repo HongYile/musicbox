@@ -440,6 +440,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
   }
 
   /// 歌词/评论二选一面板：顶部切换 + 上下渐变遮罩 + 隐藏滚动条。
+  /// IndexedStack 保持两个面板存活——切换不重置滚动位置/加载状态。
   Widget _panelWithTabs(CurrentTrack track, Duration position) {
     return Column(
       children: [
@@ -471,11 +472,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
             child: ScrollConfiguration(
               behavior: ScrollConfiguration.of(context)
                   .copyWith(scrollbars: false),
-              child: _panelTab == 0
-                  ? _lyricsView(position)
-                  : CommentsPanel(
+              child: IndexedStack(
+                index: _panelTab,
+                children: [
+                  _lyricsView(position),
+                  CommentsPanel(
                       key: ValueKey('${track.bvid}:${track.cid}'),
                       track: track),
+                ],
+              ),
             ),
           ),
         ),
@@ -490,6 +495,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     return '${q.qualityLabel} AAC 有损压缩音轨（B站分级：64K<132K<192K）';
   }
 
+  /// 手动滚动歌词后暂停自动跟随的截止时间。
+  DateTime _followResumeAt = DateTime.fromMillisecondsSinceEpoch(0);
+
   Widget _lyricsView(Duration position) {
     if (_lyricLines.isEmpty) {
       return const Center(
@@ -502,37 +510,88 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
         // 上下各垫半屏：第一行起始即在中间，歌词自下而上升起（QQ音乐式）。
         final pad = (constraints.maxHeight / 2 - 20)
             .clamp(0.0, double.infinity);
-        if (_lyricScroll.hasClients && current >= 0) {
+        // 自动跟随：当前行居中；手动滚动后 5s 内不打扰。
+        if (_lyricScroll.hasClients &&
+            current >= 0 &&
+            DateTime.now().isAfter(_followResumeAt)) {
           final target = current * 40.0;
-          if ((_lyricScroll.offset - target).abs() > 40) {
+          // 只要不在目标位置就跟进（阈值曾设为 40 = 正好一行，
+          // 导致隔一句才滚一次的"两句一蹦"）
+          if ((_lyricScroll.offset - target).abs() > 1) {
             _lyricScroll.animateTo(target,
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOut);
           }
         }
-        return ListView.builder(
-          controller: _lyricScroll,
-          padding: EdgeInsets.symmetric(vertical: pad),
-          itemExtent: 40,
-          itemCount: _lyricLines.length,
-          itemBuilder: (context, i) {
-            final isCurrent = i == current;
-            return Center(
-              child: Text(
-                _lyricLines[i].text.isEmpty ? '·' : _lyricLines[i].text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: isCurrent ? 15 : 13,
-                  fontWeight:
-                      isCurrent ? FontWeight.bold : FontWeight.normal,
-                  color: isCurrent
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.grey,
-                ),
-              ),
-            );
+        // 当前行扫色进度：本行起点 → 下一行起点之间线性推进
+        double lineProgress = 1;
+        if (current >= 0) {
+          final start = _lyricLines[current].time;
+          final end = current + 1 < _lyricLines.length
+              ? _lyricLines[current + 1].time
+              : start + const Duration(seconds: 4);
+          final spanMs = (end - start).inMilliseconds;
+          lineProgress = spanMs > 0
+              ? ((position - start).inMilliseconds / spanMs)
+                  .clamp(0.0, 1.0)
+              : 1.0;
+        }
+        return NotificationListener<ScrollNotification>(
+          onNotification: (n) {
+            if (n is UserScrollNotification) {
+              // 用户手动滚动 → 暂停跟随 5 秒
+              _followResumeAt =
+                  DateTime.now().add(const Duration(seconds: 5));
+            }
+            return false;
           },
+          child: ListView.builder(
+            controller: _lyricScroll,
+            padding: EdgeInsets.symmetric(vertical: pad),
+            itemExtent: 40,
+            itemCount: _lyricLines.length,
+            itemBuilder: (context, i) {
+              final isCurrent = i == current;
+              final text =
+                  _lyricLines[i].text.isEmpty ? '·' : _lyricLines[i].text;
+              if (isCurrent) {
+                // 逐字扫色（近似）：主色随时间从左到右覆盖当前行
+                final primary = Theme.of(context).colorScheme.primary;
+                final f = lineProgress;
+                return Center(
+                  child: ShaderMask(
+                    blendMode: BlendMode.srcIn,
+                    shaderCallback: (rect) => LinearGradient(
+                      colors: [primary, primary, Colors.grey, Colors.grey],
+                      stops: [
+                        0.0,
+                        f,
+                        (f + 0.04).clamp(0.0, 1.0),
+                        1.0
+                      ],
+                    ).createShader(rect),
+                    child: Text(
+                      text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white),
+                    ),
+                  ),
+                );
+              }
+              return Center(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+              );
+            },
+          ),
         );
       },
     );

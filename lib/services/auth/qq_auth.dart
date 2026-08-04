@@ -38,6 +38,7 @@ class QqAuthService {
       webview.launch('https://y.qq.com');
 
       final deadline = DateTime.now().add(const Duration(minutes: 5));
+      var consecutiveErrors = 0;
       while (DateTime.now().isBefore(deadline)) {
         if (closed) return false; // 用户直接关了登录窗
         await Future<void>.delayed(const Duration(seconds: 2));
@@ -48,8 +49,17 @@ class QqAuthService {
             for (final c in raw)
               if (c.domain.contains('qq.com')) c.name: c.value,
           };
+          consecutiveErrors = 0;
         } catch (_) {
-          return false; // WebView 被关闭
+          // WebView2 首启初始化慢（建用户数据目录/拉起运行时进程），
+          // 前几轮取 cookie 会失败——不能一失败就放弃（否则登录窗成孤儿，
+          // 用户在里面登录了主程序也收不到）。连续失败约 20s 才判死。
+          consecutiveErrors++;
+          if (consecutiveErrors >= 10) {
+            await _closeQuietly(webview);
+            return false;
+          }
+          continue;
         }
         final key = cookies['qqmusic_key'] ?? cookies['qm_keyst'];
         final uin = cookies['uin'] ?? cookies['wxuin'];

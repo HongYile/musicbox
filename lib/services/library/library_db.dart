@@ -191,6 +191,19 @@ class LibraryDatabase {
 
   // ---------- playlists ----------
 
+  /// 在单个事务里执行批量写（同步导入等），避免逐行自动提交拖慢/卡 UI。
+  T inTransaction<T>(T Function() body) {
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      final r = body();
+      _db.execute('COMMIT');
+      return r;
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
   int createPlaylist(String name) {
     // 新歌单排最上面（sort_order 越小越靠前）。
     _db.execute(

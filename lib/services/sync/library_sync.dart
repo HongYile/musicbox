@@ -77,7 +77,8 @@ class LibrarySyncService {
 
   /// 导入（合并语义）：歌单按名字匹配或新建；曲目按自然去重键合并；
   /// 下载记录 upsert。返回导入的歌单数。
-  int importJson(Map<String, dynamic> json) {
+  /// 全程单事务：逐行自动提交在 Windows 上会因磁盘/杀毒扫描卡死 UI。
+  int importJson(Map<String, dynamic> json) => _db.inTransaction(() {
     final playlists = (json['playlists'] as List? ?? const []);
     var count = 0;
     for (final p in playlists.whereType<Map>()) {
@@ -117,7 +118,7 @@ class LibrarySyncService {
       ));
     }
     return count;
-  }
+  });
 
   /// 远程 JSON 的 updatedAt（无则 epoch）。
   DateTime remoteUpdatedAt(Map<String, dynamic> json) =>

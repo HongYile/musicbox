@@ -31,7 +31,8 @@ jobs:
 
       - run: flutter test
 
-      - run: flutter build windows --release
+      # --no-tree-shake-icons：字体子集化在个别图标上会出错误字形（Windows 端实测）
+      - run: flutter build windows --release --no-tree-shake-icons
 
       # 打包成便携 zip（含 exe 与全部 dll/资源）
       # 顺手并入 VC++ CRT 运行库，全新系统也免装环境、解压即用

@@ -282,6 +282,11 @@ class MusicboxApp extends ConsumerWidget {
   }
 }
 
+/// Windows 下的中文字体回退（默认 Segoe UI 不含 CJK，
+/// 系统回退可能落到细瘦的宋体系，观感差）。
+List<String>? get _fontFallback =>
+    Platform.isWindows ? const ['Microsoft YaHei', 'Segoe UI'] : null;
+
 /// 亮色主题：紫罗兰族（与暗色紫韵同族）。
 ///
 /// 浅紫底 #F7F4FB、白卡、主色紫 #7C4DFF、点缀洋红 #EC407A、细边 #E6DFF2。
@@ -301,6 +306,7 @@ ThemeData _buildTheme() {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
+    fontFamilyFallback: _fontFallback,
     scaffoldBackgroundColor: paper,
     cardTheme: CardThemeData(
       color: Colors.white,
@@ -367,6 +373,7 @@ ThemeData _buildDarkTheme() {
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
+    fontFamilyFallback: _fontFallback,
     scaffoldBackgroundColor: const Color(0xFF14101F),
     cardTheme: CardThemeData(
       color: surface,

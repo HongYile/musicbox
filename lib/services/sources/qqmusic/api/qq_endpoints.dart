@@ -3,8 +3,10 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 
+import 'qrc_crypto.dart';
 import 'qq_client.dart';
 import '../models.dart';
+import '../../../lyrics/qrc_parser.dart';
 
 /// 音质前缀表（蓝本 typeMap）：flac/ape/320/128/m4a。
 const Map<String, (String ext, int qualityId)> kQqFileTypes = {
@@ -140,6 +142,68 @@ class QqApi {
 
   String _guid() =>
       (Random().nextInt(900000000) + 100000000).toString();
+
+  /// 歌词包：逐字 QRC 原文 + 翻译 + 音译（音译多为日文/粤语歌）。
+  Future<QqLyricBundle> lyricBundle(
+    String songMid, {
+    required String title,
+    String artist = '',
+    String album = '',
+    int durationSec = 0,
+  }) async {
+    final songId = await songIdByMid(songMid);
+    final resp = await client.musicu.post(
+      '/cgi-bin/musicu.fcg',
+      data: {
+        'comm': {'uin': await client.uin(), 'format': 'json', 'ct': 19, 'cv': 0},
+        'req_0': {
+          'module': 'music.musichallSong.PlayLyricInfo',
+          'method': 'GetPlayLyricInfo',
+          'param': {
+            'albumName': base64.encode(utf8.encode(album)),
+            'crypt': 1,
+            'ct': 19,
+            'cv': 2111,
+            'interval': durationSec,
+            'lrc_t': 0,
+            'qrc': 1,
+            'qrc_t': 0,
+            'roma': 1,
+            'roma_t': 0,
+            'singerName': base64.encode(utf8.encode(artist)),
+            'songID': songId,
+            'songName': base64.encode(utf8.encode(title)),
+            'trans': 1,
+            'trans_t': 0,
+            'type': 0,
+          },
+        },
+      },
+    );
+    final body = _expectMap(resp.data, 'lyric');
+    final data = body['req_0']?['data'];
+    if (data is! Map<String, dynamic>) {
+      throw StateError('歌词返回格式异常');
+    }
+
+    List<QrcLine> decodeLines(String hex) {
+      if (hex.isEmpty) return const [];
+      return parseQrc(extractLyricContent(decryptQrcHex(hex)));
+    }
+
+    Map<int, String> decodeMap(String hex) {
+      // 翻译/音译通道：行时间 → 文本（可能与原文行数不一致，按起点对齐）
+      final lines = decodeLines(hex);
+      return {for (final l in lines) l.startMs: l.text};
+    }
+
+    return QqLyricBundle(
+      lines: decodeLines((data['lyric'] ?? '') as String),
+      trans: decodeMap((data['trans'] ?? '') as String),
+      roma: decodeMap((data['roma'] ?? '') as String),
+      hasWordTiming: (data['qrc'] as num?)?.toInt() == 1,
+    );
+  }
 
   /// songmid → 数值 songid（评论区 topid 用；fcg_play_single_song 无需登录）。
   Future<int> songIdByMid(String songMid) async {

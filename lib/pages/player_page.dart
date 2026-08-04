@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 import '../providers.dart';
 import '../services/lyrics/lrc_parser.dart';
+import '../services/lyrics/qrc_parser.dart';
 import '../services/lyrics/t2s.dart';
 import '../services/player/player_service.dart';
 import '../services/sources/bilibili/api/client.dart';
@@ -38,6 +39,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
   String _panelTrackKey = '';
   List<LrcLine> _lyricLines = const [];
   String _lyricKey = '';
+
+  /// QQ 逐字歌词（命中时替代 LRC）。
+  List<QrcLine> _qrcLines = const [];
+  Map<int, String> _trans = const {};
+  Map<int, String> _roma = const {};
+
+  /// 副歌词模式：0 关 / 1 翻译 / 2 音译。
+  int _subMode = 0;
+
   final _lyricScroll = ScrollController();
 
   /// 进度条拖动中的暂存值（0-1）；松手才 seek，避免拖动中实时跳转。
@@ -55,11 +65,61 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     super.dispose();
   }
 
-  /// 曲目变化时拉取歌词（LRCLib，与音源解耦），统一转为简体中文。
+  /// 曲目变化时拉取歌词：优先 QQ 逐字 QRC（含翻译/音译），失败回退 LRCLib。
   Future<void> _loadLyrics(CurrentTrack track) async {
     final key = '${track.bvid}:${track.cid}:${track.title}';
     if (key == _lyricKey) return;
     _lyricKey = key;
+    _qrcLines = const [];
+    _trans = const {};
+    _roma = const {};
+    _subMode = 0;
+
+    // 1) QQ 逐字歌词：QQ 曲目直接用 mid；其他源按歌名搜 QQ 拿 mid。
+    try {
+      String? mid;
+      if (track.bvid.startsWith('qq:')) {
+        mid = track.bvid.substring(3);
+      } else {
+        // 歌名清洗：AI 优先，规则兜底（B站标题噪声多）
+        var kw = track.title
+            .replaceAll(RegExp(r'【[^】]*】'), '')
+            .replaceAll(RegExp(r'[《》|｜\-—_].*$'), '')
+            .trim();
+        final ai = await ref.read(aiTitleServiceProvider).extract(
+            rawTitle: track.title, uploader: track.artist);
+        if (ai != null) kw = ai.keyword;
+        if (kw.isEmpty) kw = track.title;
+        if (track.artist.isNotEmpty && !kw.contains(track.artist)) {
+          kw = '$kw ${track.artist}';
+        }
+        final songs =
+            await ref.read(qqMusicSourceProvider).searchSongs(kw);
+        if (songs.isNotEmpty) mid = songs.first.songMid;
+      }
+      if (mid != null && key == _lyricKey) {
+        final bundle = await ref.read(qqApiProvider).lyricBundle(
+              mid,
+              title: track.title,
+              artist: track.artist,
+              durationSec:
+                  ref.read(playerServiceProvider).duration.inSeconds,
+            );
+        if (bundle.lines.isNotEmpty && mounted && key == _lyricKey) {
+          setState(() {
+            _qrcLines = bundle.lines;
+            _trans = bundle.trans;
+            _roma = bundle.roma;
+          });
+          if (_lyricScroll.hasClients) _lyricScroll.jumpTo(0);
+          return; // QRC 命中，不再走 LRCLib
+        }
+      }
+    } catch (_) {
+      // QQ 歌词失败静默回退 LRCLib
+    }
+
+    // 2) LRCLib 逐行歌词（转简体）
     final raw = await ref
         .read(lrclibServiceProvider)
         .fetchLyric(track: track.title, artist: track.artist);
@@ -461,19 +521,52 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     );
   }
 
+  /// 副歌词（翻译/音译）是否可用。
+  bool get _hasTrans => _trans.values.any((t) => t.isNotEmpty);
+  bool get _hasRoma => _roma.values.any((t) => t.isNotEmpty);
+
   /// 歌词/评论二选一面板：顶部切换 + 上下渐变遮罩 + 隐藏滚动条。
   /// IndexedStack 保持两个面板存活——切换不重置滚动位置/加载状态。
   Widget _panelWithTabs(CurrentTrack track, Duration position) {
     return Column(
       children: [
-        SegmentedButton<int>(
-          showSelectedIcon: false,
-          segments: const [
-            ButtonSegment(value: 0, label: Text('歌词')),
-            ButtonSegment(value: 1, label: Text('评论')),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 0, label: Text('歌词')),
+                ButtonSegment(value: 1, label: Text('评论')),
+              ],
+              selected: {_panelTab},
+              onSelectionChanged: (s) => setState(() => _panelTab = s.first),
+            ),
+            // 副歌词切换（仅 QRC 命中且有翻译/音译时出现）
+            if (_panelTab == 0 && (_hasTrans || _hasRoma)) ...[
+              const SizedBox(width: 8),
+              ActionChip(
+                label: Text(switch (_subMode) {
+                  1 => '翻译',
+                  2 => '音译',
+                  _ => '原词',
+                }, style: const TextStyle(fontSize: 12)),
+                visualDensity: VisualDensity.compact,
+                onPressed: () => setState(() {
+                  // 可用项间循环：0 → 1(有翻译) → 2(有音译) → 0
+                  for (var i = 1; i <= 3; i++) {
+                    final next = (_subMode + i) % 3;
+                    if (next == 0 ||
+                        (next == 1 && _hasTrans) ||
+                        (next == 2 && _hasRoma)) {
+                      _subMode = next;
+                      break;
+                    }
+                  }
+                }),
+              ),
+            ],
           ],
-          selected: {_panelTab},
-          onSelectionChanged: (s) => setState(() => _panelTab = s.first),
         ),
         const SizedBox(height: 8),
         Expanded(
@@ -517,10 +610,106 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     return '${q.qualityLabel} AAC 有损压缩音轨（B站分级：64K<132K<192K）';
   }
 
+  /// QRC 逐字歌词视图：当前行逐字高亮（到字变色），副行翻译/音译。
+  Widget _qrcView(Duration position) {
+    final current = qrcCurrentIndex(_qrcLines, position);
+    // 有副行时行高 56，否则 40
+    final extent = _subMode != 0 ? 56.0 : 40.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pad =
+            (constraints.maxHeight / 2 - extent / 2).clamp(0.0, double.infinity);
+        if (_lyricScroll.hasClients &&
+            current >= 0 &&
+            DateTime.now().isAfter(_followResumeAt)) {
+          final target = current * extent;
+          if ((_lyricScroll.offset - target).abs() > 1) {
+            _lyricScroll.animateTo(target,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut);
+          }
+        }
+        final primary = Theme.of(context).colorScheme.primary;
+        return NotificationListener<ScrollNotification>(
+          onNotification: (n) {
+            if (n is UserScrollNotification) {
+              _followResumeAt =
+                  DateTime.now().add(const Duration(seconds: 5));
+            }
+            return false;
+          },
+          child: ListView.builder(
+            controller: _lyricScroll,
+            padding: EdgeInsets.symmetric(vertical: pad),
+            itemExtent: extent,
+            itemCount: _qrcLines.length,
+            itemBuilder: (context, i) {
+              final line = _qrcLines[i];
+              final isCurrent = i == current;
+              final subText = switch (_subMode) {
+                1 => _trans[line.startMs],
+                2 => _roma[line.startMs],
+                _ => null,
+              };
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (isCurrent)
+                      Text.rich(
+                        TextSpan(children: [
+                          for (final w in line.words)
+                            TextSpan(
+                              text: w.text,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                // 到字变色：已过片为主色，未到为灰
+                                color: position.inMilliseconds >= w.startMs
+                                    ? primary
+                                    : Colors.grey,
+                              ),
+                            ),
+                        ]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    else
+                      Text(
+                        line.text.isEmpty ? '·' : line.text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            const TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                    if (subText != null && subText.isNotEmpty)
+                      Text(
+                        subText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isCurrent
+                              ? primary.withValues(alpha: 0.7)
+                              : Colors.grey.withValues(alpha: 0.7),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   /// 手动滚动歌词后暂停自动跟随的截止时间。
   DateTime _followResumeAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   Widget _lyricsView(Duration position) {
+    // QRC 逐字歌词优先（真·跟字扫色 + 可选翻译/音译副行）
+    if (_qrcLines.isNotEmpty) return _qrcView(position);
     if (_lyricLines.isEmpty) {
       return const Center(
           child: Text('暂无歌词 / 纯音乐，请欣赏',

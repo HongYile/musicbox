@@ -1,6 +1,8 @@
 /// QQ 音乐手写模型（MVP 阶段不用 codegen）。
 library;
 
+import '../../lyrics/qrc_parser.dart';
+
 class QqSong {
   const QqSong({
     required this.songMid,
@@ -77,4 +79,26 @@ class QqCommentPage {
 
   final List<QqComment> items;
   final bool isEnd;
+}
+
+/// QQ 歌词包：逐字原文 + 翻译 + 音译。
+class QqLyricBundle {
+  const QqLyricBundle({
+    required this.lines,
+    required this.trans,
+    required this.roma,
+    required this.hasWordTiming,
+  });
+
+  /// 逐字时间轴原文（无逐字时行内仅一个词）。
+  final List<QrcLine> lines;
+
+  /// 翻译：行起点 ms → 文本。
+  final Map<int, String> trans;
+
+  /// 音译：行起点 ms → 文本。
+  final Map<int, String> roma;
+
+  /// 服务端是否返回了逐字时间戳（qrc=1）。
+  final bool hasWordTiming;
 }

@@ -192,42 +192,54 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
 
   /// 组装播放队列：分源处理——B站 cid=0 的条目先经 pagelist 解析；
   /// QQ/网易云直接用各自 id，不查 pagelist（否则 B站 API 报 -400）。
-  Future<List<QueueItem>> _buildQueue(List<PlaylistTrack> tracks) async {
+  ///
+  /// 单首解析失败（脏数据/已失效稿件）只跳过并计数，不拖垮整个队列。
+  Future<(List<QueueItem>, int)> _buildQueue(List<PlaylistTrack> tracks) async {
     final api = ref.read(biliApiProvider);
     final items = <QueueItem>[];
+    var skipped = 0;
     for (final t in tracks) {
-      if (t.sourceId == 'bilibili') {
-        var cid = t.cid;
-        if (cid == 0) {
-          final pages = await api.pagelist(t.trackId);
-          if (pages.isEmpty) continue; // 无分 P 的跳过
-          cid = pages.first.cid;
+      try {
+        if (t.sourceId == 'bilibili') {
+          var cid = t.cid;
+          if (cid == 0) {
+            final pages = await api.pagelist(t.trackId);
+            if (pages.isEmpty) {
+              skipped++;
+              continue; // 无分 P 的跳过
+            }
+            cid = pages.first.cid;
+          }
+          items.add(QueueItem(
+            bvid: t.trackId,
+            cid: cid,
+            title: t.title,
+            artist: t.artist,
+            coverUrl: t.cover,
+          ));
+        } else {
+          items.add(QueueItem(
+            bvid: t.trackId,
+            cid: 0,
+            title: t.title,
+            artist: t.artist,
+            coverUrl: t.cover,
+            sourceId: t.sourceId, // qqmusic / netease 原样进队列
+          ));
         }
-        items.add(QueueItem(
-          bvid: t.trackId,
-          cid: cid,
-          title: t.title,
-          artist: t.artist,
-          coverUrl: t.cover,
-        ));
-      } else {
-        items.add(QueueItem(
-          bvid: t.trackId,
-          cid: 0,
-          title: t.title,
-          artist: t.artist,
-          coverUrl: t.cover,
-          sourceId: t.sourceId, // qqmusic / netease 原样进队列
-        ));
+      } catch (e) {
+        // 单首失败跳过（如 trackId 无效的脏数据），不中断整个歌单
+        skipped++;
+        debugPrint('跳过无法解析的曲目: ${t.title} (${t.sourceId}:${t.trackId}) $e');
       }
     }
-    return items;
+    return (items, skipped);
   }
 
   Future<void> _playAll(List<PlaylistTrack> tracks, int startIndex) async {
     setState(() => _starting = true);
     try {
-      final items = await _buildQueue(tracks);
+      final (items, skipped) = await _buildQueue(tracks);
       if (items.isEmpty) throw StateError('歌单里没有可播放的曲目');
       // startIndex 可能因跳过无效曲目而偏移，按 bvid 重新定位
       final target = tracks[startIndex].trackId;
@@ -239,7 +251,10 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
       await ref
           .read(playerServiceProvider)
           .playQueue(items, startIndex: index, mode: savedMode);
-      
+      if (skipped > 0 && mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('已跳过 $skipped 首无法解析的曲目')));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)

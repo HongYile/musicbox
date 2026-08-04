@@ -182,6 +182,16 @@ class LibraryDatabase {
       ) WHERE sort_order = 0 AND NOT EXISTS (
         SELECT 1 FROM playlists p3 WHERE p3.sort_order != 0
       )''');
+    // 修复脏数据：播放页加歌单曾把 CurrentTrack.bvid 的前缀（qq:/ncm:）
+    // 原样入库且 source_id 记成 bilibili，导致播放时按 B站查 pagelist 报 -400。
+    _db.execute('''
+      UPDATE playlist_tracks SET source_id = 'qqmusic',
+        track_id = substr(track_id, 4)
+      WHERE source_id = 'bilibili' AND track_id LIKE 'qq:%' ''');
+    _db.execute('''
+      UPDATE playlist_tracks SET source_id = 'netease',
+        track_id = substr(track_id, 5)
+      WHERE source_id = 'bilibili' AND track_id LIKE 'ncm:%' ''');
   }
 
   static int _now() => DateTime.now().millisecondsSinceEpoch;

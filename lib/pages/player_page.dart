@@ -428,15 +428,26 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
               IconButton(
                 tooltip: '加入歌单',
                 icon: const Icon(Icons.playlist_add),
-                onPressed: () => showAddToPlaylistDialog(
-                  context,
-                  ref,
-                  trackId: track.bvid,
-                  title: track.title,
-                  artist: track.artist,
-                  cover: track.coverUrl,
-                  cid: track.cid,
-                ),
+                onPressed: () {
+                  // CurrentTrack.bvid 带源前缀：qq:/ncm:/BV 开头，
+                  // 入库前要还原成 (sourceId, 裸 trackId)，否则歌单播放时
+                  // 会被当 B站稿件去查 pagelist 报 -400。
+                  final (sourceId, trackId) = switch (track.bvid) {
+                    var b when b.startsWith('qq:') => ('qqmusic', b.substring(3)),
+                    var b when b.startsWith('ncm:') => ('netease', b.substring(4)),
+                    var b => ('bilibili', b),
+                  };
+                  showAddToPlaylistDialog(
+                    context,
+                    ref,
+                    trackId: trackId,
+                    title: track.title,
+                    artist: track.artist,
+                    cover: track.coverUrl,
+                    cid: track.cid,
+                    sourceId: sourceId,
+                  );
+                },
               ),
               IconButton(
                 tooltip: '下载（最优音质原始流）',

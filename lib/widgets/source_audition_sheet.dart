@@ -53,8 +53,21 @@ class _SourceAuditionSheetState extends ConsumerState<SourceAuditionSheet> {
     return track.artist.isEmpty ? t : '$t ${track.artist}';
   }
 
+  /// AI 提炼后的搜索词（配置了 AI 且提取成功时非空，用于界面展示）。
+  String? _aiKeyword;
+
   Future<void> _searchAll() async {
-    final kw = _keyword;
+    var kw = _keyword;
+    final track = ref.read(playerServiceProvider).current;
+    // 配置了 AI：先提炼干净歌名（B站标题噪声多，直接搜命中率低）
+    if (track != null) {
+      final extracted = await ref.read(aiTitleServiceProvider).extract(
+          rawTitle: track.title, uploader: track.artist);
+      if (extracted != null && mounted) {
+        kw = extracted.keyword;
+        setState(() => _aiKeyword = kw);
+      }
+    }
     if (kw.isEmpty) return;
     // 三源并行，各自容错
     for (final id in _state.keys) {
@@ -188,7 +201,11 @@ class _SourceAuditionSheetState extends ConsumerState<SourceAuditionSheet> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
           child: Text(
-            track == null ? '' : '「${track.title}」各音源 Top3，点按试听对比',
+            track == null
+                ? ''
+                : _aiKeyword != null
+                    ? 'AI 识别为「$_aiKeyword」，各音源 Top3，点按试听对比'
+                    : '「${track.title}」各音源 Top3，点按试听对比',
             style: const TextStyle(fontSize: 12, color: Colors.grey),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

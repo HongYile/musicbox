@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'services/ai/ai_title_service.dart';
 import 'services/auth/bili_auth.dart';
 import 'services/auth/ncm_auth.dart';
 import 'services/auth/qq_auth.dart';
@@ -24,6 +25,7 @@ import 'services/sources/qqmusic/api/qq_client.dart';
 import 'services/sources/qqmusic/api/qq_endpoints.dart';
 import 'services/sources/qqmusic/qqmusic_source.dart';
 import 'services/sync/library_sync.dart';
+import 'services/sync/sync_crypto.dart';
 import 'services/sync/webdav_client.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -114,8 +116,92 @@ final webDavClientProvider = StateProvider<WebDavClient?>(
 /// 曲库同步服务（随 WebDAV 配置变化重建）。
 final syncServiceProvider = Provider<LibrarySyncService>((ref) {
   return LibrarySyncService(
-      ref.watch(libraryDbProvider), ref.watch(webDavClientProvider));
+    ref.watch(libraryDbProvider),
+    ref.watch(webDavClientProvider),
+    // AI 配置随曲库同步（可选，Key 用坚果云应用密码派生密钥加密）。
+    extrasExporter: () async {
+      final cfg = ref.read(aiConfigProvider);
+      if (!cfg.configured || !cfg.syncEnabled) return null;
+      final pwd =
+          await ref.read(tokenStoreProvider).read(key: kNutstorePasswordKey);
+      if (pwd == null || pwd.isEmpty) return null;
+      return {
+        'ai': {
+          'baseUrl': cfg.baseUrl,
+          'model': cfg.model,
+          'apiKeyEnc': encryptWithPassword(cfg.apiKey, pwd),
+        },
+      };
+    },
+    extrasImporter: (extras) async {
+      final ai = extras['ai'];
+      if (ai is! Map) return;
+      final enc = ai['apiKeyEnc'];
+      if (enc is! String || enc.isEmpty) return;
+      final store = ref.read(tokenStoreProvider);
+      final pwd = await store.read(key: kNutstorePasswordKey);
+      if (pwd == null || pwd.isEmpty) return;
+      try {
+        final key = decryptWithPassword(enc, pwd);
+        final cur = ref.read(aiConfigProvider);
+        await ref.read(aiConfigProvider.notifier).save(cur.copyWith(
+              baseUrl: (ai['baseUrl'] as String?) ?? cur.baseUrl,
+              model: (ai['model'] as String?) ?? cur.model,
+              apiKey: key,
+              syncEnabled: true,
+            ));
+      } catch (_) {
+        // 密文损坏/密码不符：跳过，不影响曲库导入
+      }
+    },
+  );
 });
+
+// ---------- AI 歌名识别 ----------
+
+/// TokenStore 中 AI 配置的 key（仅存本机，绝不上传仓库；
+/// 是否加密同步由 ai_sync_enabled 控制）。
+const kAiBaseUrlKey = 'ai_base_url';
+const kAiModelKey = 'ai_model';
+const kAiApiKeyKey = 'ai_api_key';
+const kAiSyncEnabledKey = 'ai_sync_enabled';
+
+final aiConfigProvider =
+    StateNotifierProvider<AiConfigController, AiConfig>((ref) {
+  return AiConfigController(ref.watch(tokenStoreProvider));
+});
+
+class AiConfigController extends StateNotifier<AiConfig> {
+  AiConfigController(this._store) : super(const AiConfig()) {
+    load();
+  }
+
+  final TokenStore _store;
+
+  Future<void> load() async {
+    state = AiConfig(
+      baseUrl: await _store.read(key: kAiBaseUrlKey) ??
+          'https://api.deepseek.com',
+      model: await _store.read(key: kAiModelKey) ?? 'deepseek-v4-flash',
+      apiKey: await _store.read(key: kAiApiKeyKey) ?? '',
+      syncEnabled: (await _store.read(key: kAiSyncEnabledKey)) == '1',
+    );
+  }
+
+  Future<void> save(AiConfig cfg) async {
+    state = cfg;
+    await _store.write(key: kAiBaseUrlKey, value: cfg.baseUrl);
+    await _store.write(key: kAiModelKey, value: cfg.model);
+    await _store.write(key: kAiApiKeyKey, value: cfg.apiKey);
+    await _store.write(
+        key: kAiSyncEnabledKey, value: cfg.syncEnabled ? '1' : '0');
+  }
+}
+
+/// AI 歌名提取服务（配置变化时自动换新）。
+final aiTitleServiceProvider = Provider<AiTitleService>(
+  (ref) => AiTitleService(() => ref.read(aiConfigProvider)),
+);
 
 /// 当前选中的音源 id（'bilibili' / 'netease'）。
 final selectedSourceProvider = StateProvider<String>((ref) => 'bilibili');

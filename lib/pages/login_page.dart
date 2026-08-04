@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 import '../providers.dart';
+import '../services/ai/ai_title_service.dart';
 import '../services/auth/web_login_page.dart';
 import '../widgets/glass_card.dart';
 import '../services/sources/bilibili/models.dart';
@@ -121,6 +122,12 @@ class LoginPage extends ConsumerWidget {
             title: '同步',
             children: [
               _NutstoreCard(),
+            ],
+          ),
+          _SettingsSection(
+            title: 'AI 歌曲识别',
+            children: [
+              const _AiCard(),
             ],
           ),
           _SettingsSection(
@@ -719,6 +726,127 @@ class _SettingsSection extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// AI 歌曲识别配置卡片：DeepSeek（OpenAI 兼容）接口提炼干净歌名。
+///
+/// Key 只存本机 TokenStore（钥匙串/本地加密文件），不进仓库；
+/// 同步开关明确标注是否加密随坚果云同步。
+class _AiCard extends ConsumerStatefulWidget {
+  const _AiCard();
+
+  @override
+  ConsumerState<_AiCard> createState() => _AiCardState();
+}
+
+class _AiCardState extends ConsumerState<_AiCard> {
+  final _keyCtrl = TextEditingController();
+  final _urlCtrl = TextEditingController();
+  final _modelCtrl = TextEditingController();
+  bool _loaded = false;
+  bool _saved = false;
+
+  @override
+  void dispose() {
+    _keyCtrl.dispose();
+    _urlCtrl.dispose();
+    _modelCtrl.dispose();
+    super.dispose();
+  }
+
+  void _fill(AiConfig cfg) {
+    if (_loaded) return;
+    _loaded = true;
+    _keyCtrl.text = cfg.apiKey;
+    _urlCtrl.text = cfg.baseUrl;
+    _modelCtrl.text = cfg.model;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cfg = ref.watch(aiConfigProvider);
+    _fill(cfg);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '用 DeepSeek 等大模型从 B站标题提炼干净歌名，换源试听/歌词匹配更准。'
+          'Key 只保存在本机，不会上传到任何仓库。',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _keyCtrl,
+          obscureText: true,
+          decoration: const InputDecoration(
+              labelText: 'API Key', hintText: 'sk-...', isDense: true),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _urlCtrl,
+          decoration: const InputDecoration(
+              labelText: '接口地址', hintText: 'https://api.deepseek.com',
+              isDense: true),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _modelCtrl,
+          decoration: const InputDecoration(
+              labelText: '模型', hintText: 'deepseek-v4-flash（无思考，快）',
+              isDense: true),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                cfg.syncEnabled
+                    ? '加密同步到坚果云：开（Key 经 AES-256 加密后随曲库同步，'
+                        '密钥由你的坚果云应用密码派生，云端只存密文）'
+                    : '加密同步到坚果云：关（Key 仅保存在本机）',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ),
+            Switch(
+              value: cfg.syncEnabled,
+              onChanged: (v) => ref
+                  .read(aiConfigProvider.notifier)
+                  .save(cfg.copyWith(syncEnabled: v)),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            FilledButton.tonal(
+              onPressed: () async {
+                await ref.read(aiConfigProvider.notifier).save(cfg.copyWith(
+                      apiKey: _keyCtrl.text.trim(),
+                      baseUrl: _urlCtrl.text.trim().isEmpty
+                          ? 'https://api.deepseek.com'
+                          : _urlCtrl.text.trim(),
+                      model: _modelCtrl.text.trim().isEmpty
+                          ? 'deepseek-v4-flash'
+                          : _modelCtrl.text.trim(),
+                    ));
+                setState(() => _saved = true);
+                Future.delayed(const Duration(seconds: 2), () {
+                  if (mounted) setState(() => _saved = false);
+                });
+              },
+              child: Text(_saved ? '已保存' : '保存'),
+            ),
+            const SizedBox(width: 12),
+            if (cfg.configured)
+              const Text('已配置，换源试听将使用 AI 提炼歌名',
+                  style: TextStyle(fontSize: 12, color: Colors.green))
+            else
+              const Text('未配置，换源用规则清洗标题',
+                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+      ],
     );
   }
 }

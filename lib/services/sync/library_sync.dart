@@ -10,10 +10,17 @@ import 'webdav_client.dart';
 /// 策略（MVP）：启动时拉取（远程较新则合并覆盖）；本地变更后 3s 防抖推送；
 /// 冲突按 updatedAt 最后写入胜。音乐文件本身不同步（坚果云免费流量有限）。
 class LibrarySyncService {
-  LibrarySyncService(this._db, this._client);
+  LibrarySyncService(this._db, this._client,
+      {this.extrasExporter, this.extrasImporter});
 
   final LibraryDatabase _db;
   final WebDavClient? _client;
+
+  /// 附加字段导出（如加密后的 AI 配置）；返回值并入载荷的 `extras` 键。
+  final Future<Map<String, dynamic>?> Function()? extrasExporter;
+
+  /// 附加字段导入（拉取时应用 extras）。
+  final Future<void> Function(Map<String, dynamic> extras)? extrasImporter;
 
   static const remoteDir = '/musicbox';
   static const remoteFile = '/musicbox/library.json';
@@ -134,8 +141,11 @@ class LibrarySyncService {
   }) async {
     final client = _requireClient();
     await client.mkcol(remoteDir);
-    final bytes = utf8.encode(jsonEncode(exportJson(
-        themeModeIndex: themeModeIndex, selectedSource: selectedSource)));
+    final payload = exportJson(
+        themeModeIndex: themeModeIndex, selectedSource: selectedSource);
+    final extras = await extrasExporter?.call();
+    if (extras != null) payload['extras'] = extras;
+    final bytes = utf8.encode(jsonEncode(payload));
     final ok = await client.put(remoteFile, bytes);
     if (!ok) throw StateError('WebDAV 推送失败');
     _lastPushAt = DateTime.now();
@@ -166,6 +176,10 @@ class LibrarySyncService {
       return (false, remoteAt); // 本地已是最新
     }
     importJson(json);
+    final extras = json['extras'];
+    if (extras is Map && extrasImporter != null) {
+      await extrasImporter!(extras.cast<String, dynamic>());
+    }
     return (true, remoteAt);
   }
 

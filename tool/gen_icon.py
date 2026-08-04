@@ -28,13 +28,14 @@ def main():
     base = cfg["YUNWU_BASE_URL"].rstrip("/")
     key = cfg["YUNWU_API_KEY"]
     prompt = (
-        "Modern music app icon artwork, completely full-bleed edge-to-edge square image, "
-        "the background gradient fills the ENTIRE canvas to every edge and corner with ZERO margins, "
-        "ZERO white border, no rounded corners, no frame: "
-        "smooth gradient from violet #7C4DFF (top-left) to magenta-pink #EC407A (bottom-right), "
-        "a pair of minimalist white over-ear headphones centered, two soft concentric sound-wave arcs "
-        "emanating from the ear cups, flat vector style, clean, no text. "
-        "IMPORTANT: gradient covers 100% of the image, corners included."
+        "App icon artwork, full-bleed square canvas with deep dark purple #1B1430 background "
+        "covering every pixel to the corners. Centered composition: a large circle like a round face, "
+        "slightly lighter purple #2A2045 fill. Inside the circle, as the 'face', three vertical "
+        "rounded equalizer bars with violet-to-pink gradient (#7C4DFF to #EC407A), middle bar shorter. "
+        "Over the circle, a THIN WHITE OUTLINE of over-ear headphones — only the outline stroke "
+        "(headband arc over the top + two earcup outlines on the sides), NOT filled, NOT realistic, "
+        "simple one-line contour in the style of the classic TTPlayer (千千静听) headphone logo. "
+        "Flat minimal vector, generous negative space, no text."
     )
     body = json.dumps({
         "model": "gpt-image-2",

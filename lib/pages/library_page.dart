@@ -347,7 +347,11 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
                       final isCurrent = current != null &&
                           current.bvid == t.trackId &&
                           (t.cid == 0 || current.cid == t.cid);
-                      return ListTile(
+                      return GestureDetector(
+                        // 鼠标右键 → 同"…"菜单（QQ音乐桌面端交互）
+                        onSecondaryTapDown: (d) =>
+                            _showTrackMenu(t, tracks, i, d.globalPosition),
+                        child: ListTile(
                         selected: isCurrent,
                         leading: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
@@ -395,23 +399,16 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
                         ),
                         subtitle: Text(
                             '${t.artist} · ${formatDuration(t.durationSec)}'),
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (v) async {
-                            switch (v) {
-                              case 'download':
-                                await _download(t);
-                              case 'remove':
-                                ref.read(libraryDbProvider).removeTrack(t.id);
-                                ref.invalidate(
-                                    playlistTracksProvider(widget.playlistId));
-                                ref.read(playlistsProvider.notifier).refresh();
-                            }
+                        trailing: IconButton(
+                          tooltip: '更多',
+                          icon: const Icon(Icons.more_horiz),
+                          onPressed: () {
+                            final box = context.findRenderObject() as RenderBox?;
+                            final pos = box?.localToGlobal(
+                                    Offset(box.size.width - 40, 24)) ??
+                                Offset.zero;
+                            _showTrackMenu(t, tracks, i, pos);
                           },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'download', child: Text('下载')),
-                            PopupMenuItem(
-                                value: 'remove', child: Text('从歌单移除')),
-                          ],
                         ),
                         // 同一首再点 = 暂停/继续；点其他 = 从该首开始连播
                         onTap: () {
@@ -421,6 +418,7 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
                             _playAll(tracks, i);
                           }
                         },
+                        ),
                       );
                     },
                   ),
@@ -428,6 +426,91 @@ class _PlaylistDetailViewState extends ConsumerState<PlaylistDetailView> {
         ),
       ],
     );
+  }
+
+  /// 单首曲目 → 播放队列条目（B站 cid=0 的先经 pagelist 解析）。
+  Future<QueueItem?> _queueItemOf(PlaylistTrack t) async {
+    try {
+      if (t.sourceId == 'bilibili') {
+        var cid = t.cid;
+        if (cid == 0) {
+          final pages =
+              await ref.read(biliApiProvider).pagelist(t.trackId);
+          if (pages.isEmpty) return null;
+          cid = pages.first.cid;
+        }
+        return QueueItem(
+            bvid: t.trackId,
+            cid: cid,
+            title: t.title,
+            artist: t.artist,
+            coverUrl: t.cover);
+      }
+      return QueueItem(
+          bvid: t.trackId,
+          cid: 0,
+          title: t.title,
+          artist: t.artist,
+          coverUrl: t.cover,
+          sourceId: t.sourceId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 曲目操作菜单（"…"按钮与鼠标右键共用）：QQ音乐式完整操作集。
+  Future<void> _showTrackMenu(PlaylistTrack t, List<PlaylistTrack> tracks,
+      int index, Offset position) async {
+    final v = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+          position.dx, position.dy, position.dx, position.dy),
+      items: const [
+        PopupMenuItem(value: 'play', child: Text('播放')),
+        PopupMenuItem(value: 'playNext', child: Text('下一首播放')),
+        PopupMenuItem(value: 'collect', child: Text('收藏到其他歌单')),
+        PopupMenuItem(value: 'download', child: Text('下载')),
+        PopupMenuItem(value: 'remove', child: Text('从歌单移除')),
+      ],
+    );
+    if (v == null || !mounted) return;
+    switch (v) {
+      case 'play':
+        await _playAll(tracks, index);
+      case 'playNext':
+        final item = await _queueItemOf(t);
+        if (item == null) {
+          _toast('该曲目无法解析，可能已失效');
+          return;
+        }
+        await ref.read(playerServiceProvider).playNext(item);
+        _toast('将于下一首播放：${t.title}');
+      case 'collect':
+        await showAddToPlaylistDialog(
+          context,
+          ref,
+          trackId: t.trackId,
+          title: t.title,
+          artist: t.artist,
+          cover: t.cover,
+          durationSec: t.durationSec,
+          cid: t.cid,
+          sourceId: t.sourceId,
+        );
+      case 'download':
+        await _download(t);
+      case 'remove':
+        ref.read(libraryDbProvider).removeTrack(t.id);
+        ref.invalidate(playlistTracksProvider(widget.playlistId));
+        ref.read(playlistsProvider.notifier).refresh();
+    }
+  }
+
+  void _toast(String msg) {
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
+    }
   }
 }
 

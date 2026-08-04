@@ -18,7 +18,11 @@ class MusicboxAudioHandler extends BaseAudioHandler with SeekHandler {
 
   void _broadcastState(bool playing) {
     playbackState.add(PlaybackState(
-      controls: [playing ? MediaControl.pause : MediaControl.play],
+      controls: [
+        MediaControl.skipToPrevious,
+        playing ? MediaControl.pause : MediaControl.play,
+        MediaControl.skipToNext,
+      ],
       systemActions: const {MediaAction.seek},
       processingState: AudioProcessingState.ready,
       playing: playing,
@@ -58,6 +62,12 @@ class MusicboxAudioHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> seek(Duration position) => _playerService.seek(position);
+
+  @override
+  Future<void> skipToNext() => _playerService.next();
+
+  @override
+  Future<void> skipToPrevious() => _playerService.previous();
 
   @override
   Future<void> stop() => _playerService.stop();

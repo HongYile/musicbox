@@ -5,7 +5,7 @@
   "sourceLinkTitle": "主页",
   "sourceLinkUrl": "https://github.com/HongYile/unison",
   "sourceImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-  "sourceUpdateTime": "2026-08-04T16:10:00+0800",
+  "sourceUpdateTime": "2026-08-04T17:40:00+0800",
   "sourceDescription": "聚合音乐播放器：B站 Hi-Res 无损 / QQ音乐 / 换源试听 / 歌单下载 / 坚果云同步。个人自用，仅使用自己账号权益。",
   "appCategories": [
     "音乐"
@@ -14,12 +14,12 @@
     {
       "appType": "SELF_SIGN",
       "appCateIndex": 0,
-      "appUpdateTime": "2026-08-04T16:10:00+0800",
+      "appUpdateTime": "2026-08-04T17:40:00+0800",
       "appName": "Unison",
-      "appVersion": "0.2.17",
+      "appVersion": "0.2.18",
       "appImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.17/unison-ios-unsigned.ipa",
-      "appDescription": "音质偏好可选、失败自动跳歌提示、新圆角耳机图标、AI Key 掩码"
+      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.18/unison-ios-unsigned.ipa",
+      "appDescription": "右键完整菜单、下一首播放、媒体键上下首、AirPods 防抢连、图标回炉"
     }
   ]
 }

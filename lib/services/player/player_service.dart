@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math';
 
 import 'package:media_kit/media_kit.dart';
@@ -87,7 +88,22 @@ class QueueItem {
 /// httpHeaders 传给 mpv，302 跳转后仍生效。
 /// 系统媒体控制（Now Playing/媒体键）由 MusicboxAudioHandler 同步。
 class PlayerService {
-  PlayerService(this._proxy, {this.ncmApi, this.qqApi});
+  PlayerService(this._proxy, {this.ncmApi, this.qqApi}) {
+    // 桌面端：暂停时把 mpv 输出设备置空以释放 CoreAudio——
+    // 否则暂停状态仍占着声卡，macOS 会认为本机仍在输出，
+    // AirPods 在附近用 iPhone 时会被这台 Mac 抢连。恢复播放时切回 auto。
+    if (Platform.isMacOS || Platform.isWindows) {
+      player.stream.playing.listen((playing) async {
+        final platform = player.platform;
+        if (platform is NativePlayer) {
+          try {
+            await platform.setProperty(
+                'audio-device', playing ? 'auto' : 'null');
+          } catch (_) {}
+        }
+      });
+    }
+  }
 
   final AudioProxy _proxy;
   final NcmApi? ncmApi;
@@ -252,6 +268,16 @@ class PlayerService {
       return;
     }
     _queue = [..._queue, item];
+    _emitQueue();
+  }
+
+  /// 下一首播放：插到当前曲目之后（不动当前播放）。队列空闲则直接播。
+  Future<void> playNext(QueueItem item) async {
+    if (_queue.isEmpty || _current == null || _queueIndex < 0) {
+      await enqueue(item);
+      return;
+    }
+    _queue = [..._queue]..insert(_queueIndex + 1, item);
     _emitQueue();
   }
 

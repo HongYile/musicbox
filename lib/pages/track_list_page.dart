@@ -97,6 +97,11 @@ class _TrackListPageState extends ConsumerState<TrackListPage> {
     _toast('已加入播放队列：${_trackTitle(p)}');
   }
 
+  Future<void> _playNextOne(BiliVideoPage p) async {
+    await ref.read(playerServiceProvider).playNext(_queueItem(p));
+    _toast('将于下一首播放：${_trackTitle(p)}');
+  }
+
   Future<void> _enqueueAll(List<BiliVideoPage> parts) async {
     await ref
         .read(playerServiceProvider)
@@ -345,6 +350,7 @@ class _TrackListPageState extends ConsumerState<TrackListPage> {
                         isPlaying: isPlaying,
                         playingNow: playingNow,
                         onPlay: () => _playOne(parts, i),
+                        onPlayNext: () => _playNextOne(p),
                         onEnqueue: () => _enqueueOne(p),
                         onDownload: () => _download(p),
                         onAddToPlaylist: () => showAddToPlaylistDialog(
@@ -383,6 +389,7 @@ class _TrackRow extends ConsumerWidget {
     required this.isPlaying,
     required this.playingNow,
     required this.onPlay,
+    required this.onPlayNext,
     required this.onEnqueue,
     required this.onDownload,
     required this.onAddToPlaylist,
@@ -396,14 +403,42 @@ class _TrackRow extends ConsumerWidget {
   final bool isPlaying;
   final bool playingNow;
   final VoidCallback onPlay;
+  final VoidCallback onPlayNext;
   final VoidCallback onEnqueue;
   final VoidCallback onDownload;
   final VoidCallback onAddToPlaylist;
 
+  void _showMenu(BuildContext context, Offset position) async {
+    final v = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+          position.dx, position.dy, position.dx, position.dy),
+      items: const [
+        PopupMenuItem(value: 'playNext', child: Text('下一首播放')),
+        PopupMenuItem(value: 'enqueue', child: Text('加入播放队列')),
+        PopupMenuItem(value: 'playlist', child: Text('加入歌单')),
+        PopupMenuItem(value: 'download', child: Text('下载（最优音质）')),
+      ],
+    );
+    switch (v) {
+      case 'playNext':
+        onPlayNext();
+      case 'enqueue':
+        onEnqueue();
+      case 'download':
+        onDownload();
+      case 'playlist':
+        onAddToPlaylist();
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final primary = Theme.of(context).colorScheme.primary;
-    return ListTile(
+    return GestureDetector(
+      // 鼠标右键 → 完整操作菜单
+      onSecondaryTapDown: (d) => _showMenu(context, d.globalPosition),
+      child: ListTile(
       dense: true,
       selected: isPlaying,
       leading: isPlaying
@@ -443,21 +478,22 @@ class _TrackRow extends ConsumerWidget {
             icon: const Icon(Icons.playlist_add, size: 20),
             onPressed: onEnqueue,
           ),
-          PopupMenuButton<String>(
+          IconButton(
             tooltip: '更多',
-            iconSize: 20,
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'download', child: Text('下载（最优音质）')),
-              PopupMenuItem(value: 'playlist', child: Text('加入歌单')),
-            ],
-            onSelected: (v) {
-              if (v == 'download') onDownload();
-              if (v == 'playlist') onAddToPlaylist();
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.more_horiz, size: 20),
+            onPressed: () {
+              final box = context.findRenderObject() as RenderBox?;
+              final pos = box?.localToGlobal(
+                  Offset((box.size.width) - 36, 30)) ??
+                  Offset.zero;
+              _showMenu(context, pos);
             },
           ),
         ],
       ),
       onTap: onPlay,
+      ),
     );
   }
 }

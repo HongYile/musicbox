@@ -224,6 +224,35 @@ class QqApi {
     return ((data.first as Map)['id'] as num).toInt();
   }
 
+  /// songmid → 真实 mediaMid（取流构造文件名用）。
+  ///
+  /// 很多曲目的 mediaMid 与 songMid 不同（老歌/多版本尤其如此），
+  /// 直接用 songMid 充当时 vkey 会返回空 purl（"取流失败"的元凶）。
+  Future<String> mediaMidOf(String songMid) async {
+    final resp = await client.search.get(
+      '/v8/fcg-bin/fcg_play_single_song.fcg',
+      queryParameters: {
+        'songmid': songMid,
+        'tpl': 'yqq_song_detail',
+        'format': 'json',
+      },
+      options: Options(headers: {'Referer': 'https://y.qq.com'}),
+    );
+    final body = _expectMap(resp.data, 'playSingleSong');
+    final data = (body['data'] as List? ?? const []);
+    if (data.isNotEmpty && data.first is Map) {
+      final file = (data.first as Map)['file'];
+      if (file is Map) {
+        final mm = (file['media_mid'] ?? '') as String;
+        if (mm.isNotEmpty) return mm;
+      }
+      final track = data.first as Map;
+      final mm = (track['strMediaMid'] ?? track['str_mediamid'] ?? '') as String;
+      if (mm.isNotEmpty) return mm;
+    }
+    return songMid; // 查不到时回退（多数情况 songMid==mediaMid）
+  }
+
   /// 歌曲评论分页（fcg_global_comment_h5，cmd=8 最新+热评混合，无需登录）。
   Future<QqCommentPage> comments(int songId,
       {int page = 0, int pageSize = 20}) async {

@@ -361,16 +361,33 @@ class PlayerService {
   Future<CurrentTrack> _resolveQq(QueueItem item) async {
     final api = qqApi;
     if (api == null) throw StateError('QQ音乐音源未初始化');
+    // mediaMid 与 songMid 可能不同（歌单只存了 songMid）——
+    // 实时查真实 mediaMid，否则文件名错误导致全档位返回空
+    String mediaMid = item.bvid;
+    try {
+      mediaMid = await api.mediaMidOf(item.bvid);
+    } catch (_) {}
     final song = QqSong(
       songMid: item.bvid,
-      mediaMid: item.bvid,
+      mediaMid: mediaMid,
       name: item.title,
       singer: item.artist,
       album: '',
       intervalSec: 0,
       coverUrl: item.coverUrl,
     );
-    final choice = await selectQqSongUrl(song, api.songUrl);
+    final choice = await () async {
+      try {
+        return await selectQqSongUrl(song, api.songUrl);
+      } catch (e) {
+        // 有凭证仍全档位取不到流：多半是 qqmusic_key 过期（VIP 曲全部 104003），
+        // 提示重新登录；无凭证则是权限问题。
+        final hasCred = await api.client.hasCredential();
+        throw StateError(hasCred
+            ? 'QQ 登录凭证可能已过期，请到「我的」重新登录（或该曲无版权）'
+            : '该曲需要绿钻会员（或歌曲无版权）');
+      }
+    }();
     final track = CurrentTrack(
       bvid: 'qq:${item.bvid}',
       cid: 0,

@@ -5,7 +5,7 @@
   "sourceLinkTitle": "主页",
   "sourceLinkUrl": "https://github.com/HongYile/unison",
   "sourceImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-  "sourceUpdateTime": "2026-08-05T09:55:00+0800",
+  "sourceUpdateTime": "2026-08-05T11:10:00+0800",
   "sourceDescription": "聚合音乐播放器：B站 Hi-Res 无损 / QQ音乐 / 换源试听 / 歌单下载 / 坚果云同步。个人自用，仅使用自己账号权益。",
   "appCategories": [
     "音乐"
@@ -14,12 +14,12 @@
     {
       "appType": "SELF_SIGN",
       "appCateIndex": 0,
-      "appUpdateTime": "2026-08-05T09:55:00+0800",
+      "appUpdateTime": "2026-08-05T11:10:00+0800",
       "appName": "Unison",
-      "appVersion": "0.2.21",
+      "appVersion": "0.2.22",
       "appImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.21/unison-ios-unsigned.ipa",
-      "appDescription": "更新弹窗进度数字不再撑动窗口"
+      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.22/unison-ios-unsigned.ipa",
+      "appDescription": "QQ 凭证过期给出明确重登提示；取流自动解析真实 mediaMid"
     }
   ]
 }

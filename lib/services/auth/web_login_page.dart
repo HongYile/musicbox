@@ -23,6 +23,7 @@ class WebLoginPage extends StatefulWidget {
     required this.cookieDomain,
     required this.successKey,
     required this.title,
+    this.hintText = '请在页面中完成登录，成功后自动返回',
   });
 
   /// 登录页地址（如 https://passport.bilibili.com/login）。
@@ -35,6 +36,9 @@ class WebLoginPage extends StatefulWidget {
   final String successKey;
 
   final String title;
+
+  /// 顶栏提示语。
+  final String hintText;
 
   /// 便捷入口：B站。
   static Future<WebLoginResult?> loginBilibili(BuildContext context) =>
@@ -49,19 +53,28 @@ class WebLoginPage extends StatefulWidget {
         ),
       );
 
-  /// 便捷入口：QQ 音乐（直连官方 ptlogin 登录页，桌面 UA 确保登录入口可见）。
-  static Future<WebLoginResult?> loginQqMusic(BuildContext context) =>
-      Navigator.of(context, rootNavigator: true).push<WebLoginResult>(
-        MaterialPageRoute(
-          builder: (_) => const WebLoginPage(
-            loginUrl:
-                'https://xui.ptlogin2.qq.com/cgi-bin/xlogin?appid=716027609&daid=383&style=40&hide_title_bar=1&target=self&s_url=https%3A%2F%2Fy.qq.com%2F',
-            cookieDomain: 'https://y.qq.com',
-            successKey: 'qqmusic_key',
-            title: '登录 QQ 音乐',
-          ),
+  /// 便捷入口：QQ 音乐。
+  ///
+  /// 桌面端：直连 ptlogin 登录页（桌面 UA）。
+  /// 手机端：开 y.qq.com 手机版官网（手机 UA），用户从「我的」进官方
+  /// 手机授权页——ptlogin 的 style=40 桌面版式在手机上会缩成小块且
+  /// 二维码加载不出来，故不直连。
+  static Future<WebLoginResult?> loginQqMusic(BuildContext context) {
+    final mobile = Platform.isIOS || Platform.isAndroid;
+    return Navigator.of(context, rootNavigator: true).push<WebLoginResult>(
+      MaterialPageRoute(
+        builder: (_) => WebLoginPage(
+          loginUrl: mobile
+              ? 'https://y.qq.com/'
+              : 'https://xui.ptlogin2.qq.com/cgi-bin/xlogin?appid=716027609&daid=383&style=40&hide_title_bar=1&target=self&s_url=https%3A%2F%2Fy.qq.com%2F',
+          cookieDomain: 'https://y.qq.com',
+          successKey: 'qqmusic_key',
+          title: '登录 QQ 音乐',
+          hintText: mobile ? '点「我的」→「立即登录」，成功后自动返回' : '请在页面中完成登录，成功后自动返回',
         ),
-      );
+      ),
+    );
+  }
 
   @override
   State<WebLoginPage> createState() => _WebLoginPageState();
@@ -70,7 +83,7 @@ class WebLoginPage extends StatefulWidget {
 class _WebLoginPageState extends State<WebLoginPage> {
   Timer? _timer;
   bool _done = false;
-  String _hint = '请在页面中完成登录，成功后自动返回';
+  late String _hint = widget.hintText;
 
   @override
   void initState() {

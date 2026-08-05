@@ -139,7 +139,10 @@ flutter build macos --debug         # 需要完整 Xcode（CLT 不够）
   未签名/未公证：本机直接可用；其他 Mac 首次需右键"打开"。
 - Windows：`.github/workflows/build-windows.yml`（GitHub Actions windows-latest），
   推 tag 或手动触发，产物 musicbox-windows-x64.zip 便携包。
-- iOS：本机 Xcode 16.4 直接 `flutter build ios --no-codesign` 出 IPA 侧载，
+- iOS：`flutter build ios --release --no-codesign`（⚠️ 必须用 flutter 命令构建——
+  直接调 xcodebuild 不会刷新版本号（FLUTTER_BUILD_NAME），且产物落在 DerivedData，
+  曾因此把 0.2.1 的旧包当新版连发好几个版本）。产物 `build/ios/iphoneos/Runner.app`
+  → 打 Payload/Unison.app zip 成 IPA 挂 Gitee release。
   或免费 Apple ID（Personal Team）插线装机（7 天签名）。
 
 ## Phase A/B（2026-08-01）：QQ 音乐 + 坚果云同步

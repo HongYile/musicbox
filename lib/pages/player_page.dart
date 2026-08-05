@@ -610,6 +610,21 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     return '${q.qualityLabel} AAC 有损压缩音轨（B站分级：64K<132K<192K）';
   }
 
+  /// 副歌词按"最近行起点"匹配（翻译/音译与原文时间戳常有毫秒级偏差，
+  /// 精确匹配会永远落空），容差 1.5 秒。
+  String? _subFor(Map<int, String> map, int startMs) {
+    String? best;
+    var bestDiff = 1501;
+    for (final e in map.entries) {
+      final d = (e.key - startMs).abs();
+      if (d < bestDiff) {
+        bestDiff = d;
+        best = e.value;
+      }
+    }
+    return best;
+  }
+
   /// QRC 逐字歌词视图：当前行逐字高亮（到字变色），副行翻译/音译。
   Widget _qrcView(Duration position) {
     final current = qrcCurrentIndex(_qrcLines, position);
@@ -647,8 +662,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
               final line = _qrcLines[i];
               final isCurrent = i == current;
               final subText = switch (_subMode) {
-                1 => _trans[line.startMs],
-                2 => _roma[line.startMs],
+                1 => _subFor(_trans, line.startMs),
+                2 => _subFor(_roma, line.startMs),
                 _ => null,
               };
               return Center(

@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'qrc_crypto.dart';
 import 'qq_client.dart';
 import '../models.dart';
+import '../../../lyrics/lrc_parser.dart';
 import '../../../lyrics/qrc_parser.dart';
 
 /// 音质前缀表（蓝本 typeMap）：flac/ape/320/128/m4a。
@@ -144,6 +145,9 @@ class QqApi {
       (Random().nextInt(900000000) + 100000000).toString();
 
   /// 歌词包：逐字 QRC 原文 + 翻译 + 音译（音译多为日文/粤语歌）。
+  ///
+  /// 服务端对参数敏感：缺专辑/时长的请求会整包返回空。
+  /// 这里先从单曲详情补齐 album/interval，再按 LDDC 同款参数拉取。
   Future<QqLyricBundle> lyricBundle(
     String songMid, {
     required String title,
@@ -151,7 +155,7 @@ class QqApi {
     String album = '',
     int durationSec = 0,
   }) async {
-    final songId = await songIdByMid(songMid);
+    final info = await _trackInfo(songMid);
     final resp = await client.musicu.post(
       '/cgi-bin/musicu.fcg',
       data: {
@@ -160,18 +164,20 @@ class QqApi {
           'module': 'music.musichallSong.PlayLyricInfo',
           'method': 'GetPlayLyricInfo',
           'param': {
-            'albumName': base64.encode(utf8.encode(album)),
+            'albumName': base64.encode(
+                utf8.encode(album.isNotEmpty ? album : info.album)),
             'crypt': 1,
             'ct': 19,
             'cv': 2111,
-            'interval': durationSec,
+            'interval':
+                durationSec > 0 ? durationSec : info.intervalSec,
             'lrc_t': 0,
             'qrc': 1,
             'qrc_t': 0,
             'roma': 1,
             'roma_t': 0,
             'singerName': base64.encode(utf8.encode(artist)),
-            'songID': songId,
+            'songID': info.songId,
             'songName': base64.encode(utf8.encode(title)),
             'trans': 1,
             'trans_t': 0,
@@ -188,11 +194,18 @@ class QqApi {
 
     List<QrcLine> decodeLines(String hex) {
       if (hex.isEmpty) return const [];
-      return parseQrc(extractLyricContent(decryptQrcHex(hex)));
+      final text = extractLyricContent(decryptQrcHex(hex));
+      final qrc = parseQrc(text);
+      if (qrc.isNotEmpty) return qrc;
+      // 翻译通道常是纯 LRC 行格式（[mm:ss.xx]），回退 LRC 解析
+      return [
+        for (final l in parseLrc(text))
+          QrcLine(l.time.inMilliseconds, 0,
+              [QrcWord(l.text, l.time.inMilliseconds, 0)]),
+      ];
     }
 
     Map<int, String> decodeMap(String hex) {
-      // 翻译/音译通道：行时间 → 文本（可能与原文行数不一致，按起点对齐）
       final lines = decodeLines(hex);
       return {for (final l in lines) l.startMs: l.text};
     }
@@ -202,6 +215,34 @@ class QqApi {
       trans: decodeMap((data['trans'] ?? '') as String),
       roma: decodeMap((data['roma'] ?? '') as String),
       hasWordTiming: (data['qrc'] as num?)?.toInt() == 1,
+    );
+  }
+
+  /// 单曲详情聚合（songid/专辑/时长），一次请求。
+  Future<({int songId, String album, int intervalSec})> _trackInfo(
+      String songMid) async {
+    final resp = await client.search.get(
+      '/v8/fcg-bin/fcg_play_single_song.fcg',
+      queryParameters: {
+        'songmid': songMid,
+        'tpl': 'yqq_song_detail',
+        'format': 'json',
+      },
+      options: Options(headers: {'Referer': 'https://y.qq.com'}),
+    );
+    final body = _expectMap(resp.data, 'playSingleSong');
+    final data = (body['data'] as List? ?? const []);
+    if (data.isEmpty || data.first is! Map) {
+      throw StateError('songmid 无对应曲目: $songMid');
+    }
+    final t = data.first as Map;
+    final album = (t['album'] is Map)
+        ? ((t['album'] as Map)['name'] ?? '') as String
+        : (t['albumname'] ?? '') as String;
+    return (
+      songId: (t['id'] as num).toInt(),
+      album: album,
+      intervalSec: (t['interval'] as num?)?.toInt() ?? 0,
     );
   }
 

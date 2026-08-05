@@ -141,14 +141,21 @@ Future<void> _runSelfUpdate(BuildContext context, AppRelease release) async {
             ratio != null ? '${(ratio * 100).toStringAsFixed(0)}%' : '';
         return AlertDialog(
           title: const Text('正在更新'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LinearProgressIndicator(value: ratio),
-              const SizedBox(height: 12),
-              Text('$status  $mb$totalMb MB  $percent',
-                  style: const TextStyle(fontSize: 13)),
-            ],
+          // 固定内容宽度：进度数字宽度变化不会把弹窗撑得左右伸缩
+          content: SizedBox(
+            width: 320,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(value: ratio),
+                const SizedBox(height: 12),
+                Text('$status  $mb$totalMb MB  $percent',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        // 等宽数字，进一步消除抖动
+                        fontFeatures: [FontFeature.tabularFigures()])),
+              ],
+            ),
           ),
           actions: [
             TextButton(

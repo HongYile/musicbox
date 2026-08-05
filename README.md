@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png" width="120" alt="Unison logo"/>
+<img src="docs/unison-logo-1024.png" width="120" alt="Unison logo"/>
 
 # Unison 同度
 

@@ -49,13 +49,6 @@ jobs:
           Compress-Archive -Path Unison -DestinationPath unison-windows-x64.zip
           Remove-Item -Recurse Unison
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: unison-windows-x64
-          path: |
-            unison-windows-x64.zip
-            unison-windows-setup.exe
-
       # 安装版（Inno Setup，免管理员）；dispatch 也构建以便验证（仅 tag 会挂 Release）
       - name: Build installer (Inno Setup)
         shell: pwsh
@@ -66,6 +59,13 @@ jobs:
             Set-Content installer\unison.iss -Encoding utf8
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\unison.iss
           Move-Item installer\unison-windows-setup.exe unison-windows-setup.exe -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unison-windows-x64
+          path: |
+            unison-windows-x64.zip
+            unison-windows-setup.exe
 
       # tag 触发时，顺手把 zip + 安装包挂到同名 Release 上
       - name: Attach to Release

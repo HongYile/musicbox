@@ -65,15 +65,20 @@ class _PlayerPageState extends ConsumerState<PlayerPage>
     super.dispose();
   }
 
-  /// 曲目变化时拉取歌词：优先 QQ 逐字 QRC（含翻译/音译），失败回退 LRCLib。
+  /// 曲目变化时拉取歌词：QQ 源优先 QQ 逐字 QRC（含翻译/音译），失败回退 LRCLib。
+  ///
+  /// B站（BV 开头）不做任何跨源歌词匹配——B站视频大量变速/剪辑版，
+  /// QQ/LRCLib 的正式版时间轴套上去必然对不上，宁缺毋错（面板默认评论）。
   Future<void> _loadLyrics(CurrentTrack track) async {
     final key = '${track.bvid}:${track.cid}:${track.title}';
     if (key == _lyricKey) return;
     _lyricKey = key;
     _qrcLines = const [];
+    _lyricLines = const [];
     _trans = const {};
     _roma = const {};
     _subMode = 0;
+    if (track.bvid.startsWith('BV')) return; // B站不套歌词
 
     // 1) QQ 逐字歌词：QQ 曲目直接用 mid；其他源按歌名搜 QQ 拿 mid。
     try {

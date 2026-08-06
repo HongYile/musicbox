@@ -56,21 +56,20 @@ class WebLoginPage extends StatefulWidget {
   /// 便捷入口：QQ 音乐。
   ///
   /// 桌面端：直连 ptlogin 登录页（桌面 UA）。
-  /// 手机端：开 y.qq.com 手机版官网（手机 UA），用户从「我的」进官方
-  /// 手机授权页——ptlogin 的 style=40 桌面版式在手机上会缩成小块且
-  /// 二维码加载不出来，故不直连。
+  /// 手机端：手机统一登录页（style=9，手机号/账号密码，无需扫码）——
+  /// y.qq.com 手机版官网没有登录入口，ptlogin style=40 是桌面版式。
   static Future<WebLoginResult?> loginQqMusic(BuildContext context) {
     final mobile = Platform.isIOS || Platform.isAndroid;
     return Navigator.of(context, rootNavigator: true).push<WebLoginResult>(
       MaterialPageRoute(
         builder: (_) => WebLoginPage(
           loginUrl: mobile
-              ? 'https://y.qq.com/'
+              ? 'https://ui.ptlogin2.qq.com/cgi-bin/login?appid=716027609&daid=383&style=9&s_url=https%3A%2F%2Fy.qq.com%2F'
               : 'https://xui.ptlogin2.qq.com/cgi-bin/xlogin?appid=716027609&daid=383&style=40&hide_title_bar=1&target=self&s_url=https%3A%2F%2Fy.qq.com%2F',
           cookieDomain: 'https://y.qq.com',
           successKey: 'qqmusic_key',
           title: '登录 QQ 音乐',
-          hintText: mobile ? '点「我的」→「立即登录」，成功后自动返回' : '请在页面中完成登录，成功后自动返回',
+          hintText: mobile ? '手机号或 QQ 号登录，成功后自动返回' : '请在页面中完成登录，成功后自动返回',
         ),
       ),
     );

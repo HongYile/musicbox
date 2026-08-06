@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:desktop_webview_window/desktop_webview_window.dart';
 
 import '../sources/qqmusic/api/qq_client.dart';
+import '../sources/qqmusic/api/qq_login.dart';
 
 /// QQ 音乐内嵌网页登录。
 ///
@@ -17,6 +18,11 @@ class QqAuthService {
 
   /// 已登录（jar 中有有效票据）。
   Future<bool> isLoggedIn() => _client.hasCredential();
+
+  /// qqmusic_key 过期后用 p_skey/skey 自动换新（官方客户端同源思路）。
+  /// 返回是否换到了新票据。
+  Future<bool> refreshMusicKey() =>
+      QqQrLogin(_client.cookieJar).mintMusicKey();
 
   /// 当前 QQ 号（未登录 '0'）。
   Future<String> uin() => _client.uin();

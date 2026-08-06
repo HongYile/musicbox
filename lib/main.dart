@@ -17,6 +17,7 @@ import 'widgets/tech_background.dart';
 import 'providers.dart';
 import 'services/auth/bili_auth.dart';
 import 'services/auth/cookie_refresh.dart';
+import 'services/auth/qq_auth.dart';
 import 'services/auth/token_store.dart';
 import 'services/library/download_service.dart';
 import 'services/library/library_db.dart';
@@ -194,6 +195,29 @@ Future<void> _bootstrap() async {
   if (savedMode != null) playerService.setMode(savedMode);
   playerService.onModeChanged =
       (mode) => prefs.setString('play_mode', mode.name);
+
+  // QQ 音乐票据自动续期：qqmusic_key 缺失或上次续期超过 2 天时，
+  // 用长寿命的 p_skey 换新（官方客户端同源机制），无需重新扫码。
+  unawaited(() async {
+    try {
+      final hasKey = await qqClient.musicKey() != null;
+      final lastMs = int.tryParse(
+              await tokenStore.read(key: 'qq_key_refresh_at') ?? '') ??
+          0;
+      final stale = DateTime.now().millisecondsSinceEpoch - lastMs >
+          const Duration(days: 2).inMilliseconds;
+      if (!hasKey || stale) {
+        final ok = await QqAuthService(qqClient).refreshMusicKey();
+        if (ok) {
+          await tokenStore.write(
+              key: 'qq_key_refresh_at',
+              value: '${DateTime.now().millisecondsSinceEpoch}');
+        }
+      }
+    } catch (_) {
+      // 续期失败不影响启动
+    }
+  }());
 
   // 音质偏好（默认无损优先）。
   QualityPreference.current = prefs.getString('app_quality') ?? 'lossless';

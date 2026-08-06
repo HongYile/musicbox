@@ -1,9 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
-import 'package:flutter/foundation.dart';
 
 /// QQ 扫码登录（ptlogin2 链）。
 ///
@@ -45,7 +45,13 @@ int qqHash33(String s) {
 }
 
 class QqQrLogin {
-  QqQrLogin(this.cookieJar, {Dio? dio}) : _dio = dio ?? _buildDio(cookieJar);
+  QqQrLogin(this.cookieJar, {Dio? dio, this.logger})
+      : _dio = dio ?? _buildDio(cookieJar);
+
+  /// 可选日志（扫码换票链路诊断）；纯 Dart，不依赖 Flutter。
+  final void Function(String message)? logger;
+
+  void _log(String msg) => logger?.call(msg);
 
   final CookieJar cookieJar;
   final Dio _dio;
@@ -193,6 +199,97 @@ class QqQrLogin {
     }
   }
 
+  /// 用 jar 中现存的 p_skey/skey 换出新的 qqmusic_key（自动续期用）。
+  /// 返回是否换到了音乐票据。
+  Future<bool> mintMusicKey() async {
+    var jar = await _jarCookies();
+    var pSkey = jar['p_skey'];
+    final uin = jar['uin'] ?? '';
+    final gtkBase = (pSkey != null && pSkey.isNotEmpty)
+        ? pSkey
+        : (jar['skey'] ?? '');
+    if (gtkBase.isEmpty || uin.isEmpty) return false;
+    pSkey = gtkBase;
+    final gtk = qqHash33(pSkey);
+
+    // OAuth 链：pt_oauth_token → openid → Login(openid+access_token)
+    final oauthToken = jar['pt_oauth_token'] ?? '';
+    if (oauthToken.isNotEmpty) {
+      try {
+        final meResp = await _plainDio.get<String>(
+          'https://graph.qq.com/oauth2.0/me',
+          queryParameters: {'access_token': oauthToken},
+        );
+        final openid = RegExp(r'"openid"\s*:\s*"([^"]+)"')
+            .firstMatch(meResp.data ?? '')
+            ?.group(1);
+        if (openid != null && openid.isNotEmpty) {
+          final oauthLogin = await _plainDio.post<String>(
+            'https://u.y.qq.com/cgi-bin/musicu.fcg',
+            data: jsonEncode({
+              'comm': {'g_tk': gtk, 'format': 'json', 'ct': 24, 'cv': 0},
+              'req_0': {
+                'module': 'music.login.LoginServer',
+                'method': 'Login',
+                'param': {
+                  'openid': openid,
+                  'access_token': oauthToken,
+                  'str_musicid': uin.replaceAll(RegExp(r'\D'), ''),
+                },
+              },
+            }),
+            options: Options(
+              headers: {
+                'Cookie': 'uin=$uin; skey=${jar['skey']}; p_skey=$pSkey',
+                'Referer': 'https://y.qq.com',
+              },
+              contentType: 'application/json',
+            ),
+          );
+          await _captureCookies(
+              'https://u.y.qq.com/cgi-bin/musicu.fcg', oauthLogin);
+        }
+      } catch (_) {}
+      jar = await _jarCookies();
+      final earlyKey = jar['qqmusic_key'] ?? jar['qm_keyst'];
+      if (earlyKey != null && earlyKey.isNotEmpty) return true;
+    }
+
+    // 旧式链：Login(str_musicid)
+    try {
+      final loginResp = await _plainDio.post<String>(
+        'https://u.y.qq.com/cgi-bin/musicu.fcg',
+        data: jsonEncode({
+          'comm': {'g_tk': gtk, 'format': 'json', 'ct': 24, 'cv': 0},
+          'req_0': {
+            'module': 'music.login.LoginServer',
+            'method': 'Login',
+            'param': {'str_musicid': uin.replaceAll(RegExp(r'\D'), '')},
+          },
+        }),
+        options: Options(
+          headers: {
+            'Cookie': 'uin=$uin; skey=${jar['skey']}; p_skey=$pSkey',
+            'Referer': 'https://y.qq.com',
+          },
+          contentType: 'application/json',
+        ),
+      );
+      await _captureCookies('https://u.y.qq.com/cgi-bin/musicu.fcg', loginResp);
+    } catch (_) {}
+
+    // 兜底：访问首页让服务端按 p_skey 下发音乐会话
+    try {
+      final home = await _plainDio.get<void>('https://y.qq.com/',
+          options: Options(followRedirects: false));
+      await _captureCookies('https://y.qq.com/', home);
+    } catch (_) {}
+
+    jar = await _jarCookies();
+    final key = jar['qqmusic_key'] ?? jar['qm_keyst'];
+    return key != null && key.isNotEmpty;
+  }
+
   Future<QqQrResult> _exchange(String ticketUrl) async {
     // ticket URL 是多跳跳转链（302 Location 或 HTML JS/meta 跳转），
     // p_skey 在中间某一跳的 Set-Cookie 下发——逐跳跟随并收集 cookie。
@@ -206,7 +303,7 @@ class QqQrLogin {
               followRedirects: false, responseType: ResponseType.plain),
         );
       } catch (e) {
-        debugPrint('[QqLogin] hop$hop 请求异常: $e');
+        _log('[QqLogin] hop$hop 请求异常: $e');
         break;
       }
       await _captureCookies(url, resp);
@@ -223,7 +320,7 @@ class QqQrLogin {
         return '${first.substring(0, eq > 0 ? eq : first.length)}'
             '(len=${v.length})';
       }).join(',');
-      debugPrint('[QqLogin] hop$hop ${Uri.parse(url).host} → $code, '
+      _log('[QqLogin] hop$hop ${Uri.parse(url).host} → $code, '
           '关键cookie: [$keyLines]');
       if (code >= 300 && code < 400) {
         final loc = resp.headers.value('location');
@@ -231,7 +328,7 @@ class QqQrLogin {
         url = loc.startsWith('http')
             ? loc
             : Uri.parse(url).resolve(loc).toString();
-        debugPrint('[QqLogin] hop$hop 302 → ${Uri.parse(url).host}');
+        _log('[QqLogin] hop$hop 302 → ${Uri.parse(url).host}');
         continue;
       }
       final body = resp.data ?? '';
@@ -240,7 +337,7 @@ class QqQrLogin {
           .firstMatch(body);
       if (m != null) {
         url = m.group(1)!;
-        debugPrint('[QqLogin] hop$hop JS 跳转 → ${Uri.parse(url).host}');
+        _log('[QqLogin] hop$hop JS 跳转 → ${Uri.parse(url).host}');
         continue;
       }
       final meta = RegExp(r'''url\s*=\s*(https?[^\s"'<>]+)''',
@@ -248,10 +345,10 @@ class QqQrLogin {
           .firstMatch(body);
       if (meta != null && body.contains('refresh')) {
         url = meta.group(1)!;
-        debugPrint('[QqLogin] hop$hop meta 跳转 → ${Uri.parse(url).host}');
+        _log('[QqLogin] hop$hop meta 跳转 → ${Uri.parse(url).host}');
         continue;
       }
-      debugPrint('[QqLogin] hop$hop 无跳转，body 前 200 字符: '
+      _log('[QqLogin] hop$hop 无跳转，body 前 200 字符: '
           '${body.substring(0, body.length > 200 ? 200 : body.length)}');
       break;
     }
@@ -269,7 +366,7 @@ class QqQrLogin {
           message: 'ticket 未换到 p_skey（Set-Cookie 缺失）');
     }
     pSkey = gtkBase;
-    debugPrint('[QqLogin] 换票基材: ${pSkey == jar['skey'] ? 'skey' : 'p_skey'}');
+    _log('[QqLogin] 换票基材: ${pSkey == jar['skey'] ? 'skey' : 'p_skey'}');
 
     // 2) p_skey/skey → QQ 音乐票据（g_tk 同 hash33；音乐域 Set-Cookie 下发）
     final gtk = qqHash33(pSkey);
@@ -286,7 +383,7 @@ class QqQrLogin {
         final meBody = meResp.data ?? '';
         final openid =
             RegExp(r'"openid"\s*:\s*"([^"]+)"').firstMatch(meBody)?.group(1);
-        debugPrint('[QqLogin] oauth2.0/me → openid=${openid ?? '(无)'}');
+        _log('[QqLogin] oauth2.0/me → openid=${openid ?? '(无)'}');
         if (openid != null && openid.isNotEmpty) {
           final oauthLogin = await _plainDio.post<String>(
             'https://u.y.qq.com/cgi-bin/musicu.fcg',
@@ -311,14 +408,14 @@ class QqQrLogin {
             ),
           );
           final body = oauthLogin.data ?? '';
-          debugPrint('[QqLogin] Login(openid) → ${oauthLogin.statusCode}, '
+          _log('[QqLogin] Login(openid) → ${oauthLogin.statusCode}, '
               'set-cookie: [${(oauthLogin.headers['set-cookie'] ?? const []).map((l) => l.split(';').first.split('=').first).join(',')}], '
               'body: ${body.substring(0, body.length > 300 ? 300 : body.length)}');
           await _captureCookies(
               'https://u.y.qq.com/cgi-bin/musicu.fcg', oauthLogin);
         }
       } catch (e) {
-        debugPrint('[QqLogin] OAuth 换票异常: $e');
+        _log('[QqLogin] OAuth 换票异常: $e');
       }
       // 先检查 OAuth 链是否已换到票据
       jar = await _jarCookies();
@@ -353,12 +450,12 @@ class QqQrLogin {
           .map((l) => l.split(';').first.split('=').first)
           .join(',');
       final body = loginResp.data ?? '';
-      debugPrint('[QqLogin] musicu Login → ${loginResp.statusCode}, '
+      _log('[QqLogin] musicu Login → ${loginResp.statusCode}, '
           'set-cookie: [$sc], body: '
           '${body.substring(0, body.length > 300 ? 300 : body.length)}');
       await _captureCookies('https://u.y.qq.com/cgi-bin/musicu.fcg', loginResp);
     } catch (e) {
-      debugPrint('[QqLogin] musicu Login 异常: $e');
+      _log('[QqLogin] musicu Login 异常: $e');
     }
 
     // 3) 兜底：访问 y.qq.com 首页让服务端按 p_skey 下发音乐会话

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform, Process;
 import 'dart:typed_data';
 import 'dart:ui' show ImageFilter;
 
@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher_string.dart';
 import '../providers.dart';
 import '../services/ai/ai_title_service.dart';
 import '../services/auth/web_login_page.dart';
+import '../services/crash_log.dart';
 import '../services/sources/quality_preference.dart';
 import '../widgets/glass_card.dart';
 import '../services/sources/bilibili/models.dart';
@@ -193,13 +194,12 @@ class LoginPage extends ConsumerWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('版本更新',
+                  Text('诊断日志',
                       style: Theme.of(context).textTheme.bodyMedium),
                   TextButton.icon(
-                    onPressed: () =>
-                        checkAndPromptUpdate(context, manual: true),
-                    icon: const Icon(Icons.system_update_alt, size: 18),
-                    label: const Text('检查更新'),
+                    onPressed: () => _openLogDir(context),
+                    icon: const Icon(Icons.article_outlined, size: 18),
+                    label: const Text('打开日志目录'),
                   ),
                 ],
               ),
@@ -769,6 +769,30 @@ class _SettingsSection extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// 打开诊断日志所在目录（macOS 访达定位 / Windows 资源管理器选中）。
+Future<void> _openLogDir(BuildContext context) async {
+  final path = CrashLog.path;
+  if (path == null) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('日志尚未初始化')));
+    return;
+  }
+  try {
+    if (Platform.isMacOS) {
+      await Process.run('open', ['-R', path]);
+    } else if (Platform.isWindows) {
+      await Process.run('explorer', ['/select,', path]);
+    } else {
+      await launchUrlString('file://${File(path).parent.path}');
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('日志位置: $path')));
+    }
   }
 }
 

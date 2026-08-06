@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -19,6 +20,7 @@ import 'services/auth/bili_auth.dart';
 import 'services/auth/cookie_refresh.dart';
 import 'services/auth/qq_auth.dart';
 import 'services/auth/token_store.dart';
+import 'services/crash_log.dart';
 import 'services/library/download_service.dart';
 import 'services/library/library_db.dart';
 import 'services/player/audio_proxy.dart';
@@ -33,6 +35,7 @@ import 'services/sources/quality_preference.dart';
 import 'services/sources/qqmusic/api/qq_client.dart';
 import 'services/sources/qqmusic/api/qq_endpoints.dart';
 import 'services/sync/webdav_client.dart';
+import 'services/update/update_checker.dart';
 import 'services/update/update_prompt.dart';
 
 /// 全局导航 key（应用内更新弹窗用）。
@@ -72,6 +75,17 @@ void showTopToast(String message) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await CrashLog.init();
+  CrashLog.appVersionMarker = UpdateChecker.currentVersion;
+  // 运行期异常兜底：全部记进 unison_runtime.log（闪退排查用）。
+  FlutterError.onError = (details) {
+    CrashLog.log('FlutterError', details.exception, details.stack);
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (e, st) {
+    CrashLog.log('未捕获异常', e, st);
+    return true;
+  };
   try {
     await _bootstrap();
   } catch (e, st) {

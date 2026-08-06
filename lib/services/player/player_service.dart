@@ -4,6 +4,8 @@ import 'dart:math';
 
 import 'package:media_kit/media_kit.dart';
 
+import '../crash_log.dart';
+
 import '../sources/bilibili/api/client.dart';
 import '../sources/bilibili/stream_select.dart';
 import '../sources/netease/api/ncm_endpoints.dart';
@@ -148,6 +150,7 @@ class PlayerService {
     final t =
         _queueIndex >= 0 && _queueIndex < _queue.length ? _queue[_queueIndex] : null;
     final reason = e.toString().replaceAll(RegExp(r'^[A-Za-z]+: '), '');
+    CrashLog.log('播放失败', e);
     _errorController
         .add('无法播放「${t?.title ?? '未知曲目'}」：$reason（1 秒后自动下一首）');
   }

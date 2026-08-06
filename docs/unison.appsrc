@@ -5,7 +5,7 @@
   "sourceLinkTitle": "主页",
   "sourceLinkUrl": "https://github.com/HongYile/unison",
   "sourceImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-  "sourceUpdateTime": "2026-08-06T13:10:00+0800",
+  "sourceUpdateTime": "2026-08-06T14:10:00+0800",
   "sourceDescription": "聚合音乐播放器：B站 Hi-Res 无损 / QQ音乐 / 换源试听 / 歌单下载 / 坚果云同步。个人自用，仅使用自己账号权益。",
   "appCategories": [
     "音乐"
@@ -14,12 +14,12 @@
     {
       "appType": "SELF_SIGN",
       "appCateIndex": 0,
-      "appUpdateTime": "2026-08-06T13:10:00+0800",
+      "appUpdateTime": "2026-08-06T14:10:00+0800",
       "appName": "Unison",
-      "appVersion": "0.2.29",
+      "appVersion": "0.2.30",
       "appImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.29/unison-ios-unsigned.ipa",
-      "appDescription": "QQ 票据自动续期（p_skey 换发新 qqmusic_key）"
+      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.30/unison-ios-unsigned.ipa",
+      "appDescription": "运行时崩溃日志（时间戳+系统崩溃报告关联）"
     }
   ]
 }

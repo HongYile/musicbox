@@ -378,31 +378,42 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
           ),
         ] else ...[
           if (Platform.isIOS || Platform.isAndroid) ...[
-            // 移动端：本机内嵌官方网页登录（cookie 粘贴为兜底）
+            // 移动端：扫码为主（同机 QQ 扫一扫→相册识别截图即可），
+            // 网页登录与 cookie 粘贴为兜底
             FilledButton(
-              onPressed: _busy
-                  ? null
-                  : () async {
-                      final result = await WebLoginPage.loginQqMusic(context);
-                      if (result != null && result.success) {
-                        await ref
-                            .read(qqClientProvider)
-                            .importCookieString(result.cookieString);
-                        ref.invalidate(qqLoginStateProvider);
-                        if (mounted && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('QQ 音乐登录成功')));
-                        }
-                      }
-                    },
-              child: const Text('本机网页登录 QQ 音乐'),
+              onPressed: _busy && _session != null ? null : _startQr,
+              child: Text(_session == null ? '扫码登录 QQ 音乐（推荐）' : '刷新二维码'),
             ),
-            const SizedBox(height: 10),
-            const Text('或用 cookie 粘贴登录：浏览器打开 y.qq.com 登录后，'
-                '从开发者工具复制整串 Cookie 粘贴到下方',
-                style: TextStyle(color: Colors.grey, fontSize: 11),
-                textAlign: TextAlign.center),
+            if (_session != null) ...[
+              const SizedBox(height: 10),
+              _QrWithBlur(
+                  png: _session!.qrPng,
+                  blurred: _phase != null && _phase != QqQrStep.waiting),
+              const SizedBox(height: 6),
+              const Text('同一部手机：截屏 → 打开 QQ → 扫一扫 → 右上角相册选截图',
+                  style: TextStyle(color: Colors.grey, fontSize: 11),
+                  textAlign: TextAlign.center),
+            ],
             const SizedBox(height: 6),
+            Text(_message, style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () async {
+                final result = await WebLoginPage.loginQqMusic(context);
+                if (result != null && result.success) {
+                  await ref
+                      .read(qqClientProvider)
+                      .importCookieString(result.cookieString);
+                  ref.invalidate(qqLoginStateProvider);
+                  if (mounted && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('QQ 音乐登录成功')));
+                  }
+                }
+              },
+              child: const Text('或用网页授权登录', style: TextStyle(fontSize: 12)),
+            ),
+            const SizedBox(height: 4),
             SizedBox(
               width: 320,
               child: TextField(
@@ -426,24 +437,27 @@ class _QqLoginCardState extends ConsumerState<_QqLoginCard> {
               child: const Text('登录 QQ 音乐（官方网页）'),
             ),
           ],
-          if (_session != null) ...[
-            const SizedBox(height: 10),
-            _QrWithBlur(
-                png: _session!.qrPng,
-                blurred: _phase != null && _phase != QqQrStep.waiting),
-          ],
-          const SizedBox(height: 6),
-          Text(_message, style: const TextStyle(fontSize: 12)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextButton(
-                onPressed: _busy && _session != null ? null : _startQr,
-                child: Text(_session == null ? '实验：试试扫码' : '刷新二维码',
-                    style: const TextStyle(fontSize: 12)),
-              ),
+          // 桌面端的二维码区域（移动端在各自分支内渲染）
+          if (!Platform.isIOS && !Platform.isAndroid) ...[
+            if (_session != null) ...[
+              const SizedBox(height: 10),
+              _QrWithBlur(
+                  png: _session!.qrPng,
+                  blurred: _phase != null && _phase != QqQrStep.waiting),
             ],
-          ),
+            const SizedBox(height: 6),
+            Text(_message, style: const TextStyle(fontSize: 12)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: _busy && _session != null ? null : _startQr,
+                  child: Text(_session == null ? '扫码登录' : '刷新二维码',
+                      style: const TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+          ],
         ],
       ],
     );

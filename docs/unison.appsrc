@@ -5,7 +5,7 @@
   "sourceLinkTitle": "主页",
   "sourceLinkUrl": "https://github.com/HongYile/unison",
   "sourceImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-  "sourceUpdateTime": "2026-08-06T10:20:00+0800",
+  "sourceUpdateTime": "2026-08-06T11:30:00+0800",
   "sourceDescription": "聚合音乐播放器：B站 Hi-Res 无损 / QQ音乐 / 换源试听 / 歌单下载 / 坚果云同步。个人自用，仅使用自己账号权益。",
   "appCategories": [
     "音乐"
@@ -14,12 +14,12 @@
     {
       "appType": "SELF_SIGN",
       "appCateIndex": 0,
-      "appUpdateTime": "2026-08-06T10:20:00+0800",
+      "appUpdateTime": "2026-08-06T11:30:00+0800",
       "appName": "Unison",
-      "appVersion": "0.2.27",
+      "appVersion": "0.2.28",
       "appImage": "https://gitee.com/Qq2454292378/unison/raw/main/docs/unison-logo-1024.png",
-      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.27/unison-ios-unsigned.ipa",
-      "appDescription": "手机端 QQ 登录改手机统一登录页（手机号/QQ号）"
+      "appPackage": "https://gitee.com/Qq2454292378/unison/releases/download/v0.2.28/unison-ios-unsigned.ipa",
+      "appDescription": "手机端 QQ 登录改为扫码为主（同机相册识别）"
     }
   ]
 }
